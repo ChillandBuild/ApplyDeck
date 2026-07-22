@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test-clean-chips.mjs"
+    "test": "node --test test-clean-chips.mjs",
+    "test:api": "node --import tsx --test src/app/api/portals/route.test.ts src/app/api/automation/route.test.ts"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.77",
@@ -32,6 +33,7 @@
     "@types/react-dom": "^19.2.3",
     "postcss": "^8.5.9",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.23.1",
     "typescript": "^6.0.2"
   }
 }
