@@ -5,6 +5,8 @@ import { X, Ban, Clock, MapPin, ChevronDown, SlidersHorizontal } from "lucide-re
 import { cn } from "@/lib/cn";
 import { ATS_LABEL, ATS_SOURCES, cleanChips, type AtsSource, type ExploreFilters } from "@/lib/explore";
 
+import { KeywordField, KEYWORD_FIELD_STYLE } from "@/components/keyword-field";
+
 const RECENCY = [
   { label: "24h", days: 1 },
   { label: "3d", days: 3 },
@@ -12,82 +14,6 @@ const RECENCY = [
   { label: "14d", days: 14 },
   { label: "30d", days: 30 },
 ];
-
-const STYLE = `
-.co-fb__chip{display:inline-flex;align-items:center;gap:.3rem;border-radius:999px;padding:.2rem .5rem .2rem .6rem;font-size:12.5px;line-height:1.2;border:1px solid transparent}
-.co-fb__chip button{display:inline-flex;opacity:.6;transition:opacity .15s}
-.co-fb__chip button:hover{opacity:1}
-.co-fb__chip.inc{color:hsl(26 78% 42%);background:hsl(26 73% 51% / .11);border-color:hsl(26 73% 51% / .26)}
-html.dark .co-fb__chip.inc{color:hsl(26 86% 70%);background:hsl(26 80% 55% / .14);border-color:hsl(26 80% 55% / .28)}
-.co-fb__field{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;min-height:2.6rem;padding:.45rem .55rem;border-radius:.7rem}
-.co-fb__field input{flex:1;min-width:7rem;background:transparent;border:none;outline:none;font-size:13.5px;color:inherit}
-.co-fb__field input::placeholder{color:var(--co-faint,hsl(0 0% 60%))}
-@media (max-width:639px){.co-fb__chip button{min-width:44px;min-height:44px;justify-content:center}.co-fb__chip{min-height:44px}.co-fb__field{min-height:44px}.co-fb__field input{min-height:32px}}
-`;
-
-function KeywordField({
-  values,
-  tone,
-  placeholder,
-  onChange,
-}: {
-  values: string[];
-  tone: "inc" | "exc";
-  placeholder: string;
-  onChange: (v: string[]) => void;
-}) {
-  const [draft, setDraft] = useState("");
-  // Split only on UNAMBIGUOUS item separators (comma / newline / semicolon) — never
-  // bare spaces, which are legitimate inside multi-word entries ("AI platform",
-  // "New York", "Costa Rica"). A space-only paste stays one chip on purpose (#1147).
-  const commit = (text: string) => {
-    const parts = text.split(/[,\n;\t\r]+/);
-    const next = cleanChips([...values, ...parts]);
-    onChange(next);
-    setDraft("");
-  };
-  return (
-    <div className={cn("co-fb__field border border-border bg-surface/40 focus-within:border-brand/40 transition-colors")}>
-      {values.map((v) => (
-        <span key={v} className={cn("co-fb__chip", tone === "inc" ? "inc" : "border-border bg-surface-hover text-muted")}>
-          {tone === "exc" && <Ban className="size-3 opacity-70" />}
-          {v}
-          <button type="button" aria-label={`Remove ${v}`} onClick={() => onChange(values.filter((x) => x !== v))}>
-            <X className="size-3" />
-          </button>
-        </span>
-      ))}
-      <input
-        value={draft}
-        onChange={(e) => {
-          const val = e.target.value;
-          if (/[,\n;\t\r]$/.test(val)) commit(val);
-          else setDraft(val);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && draft.trim()) {
-            e.preventDefault();
-            commit(draft);
-          } else if (e.key === "Backspace" && !draft && values.length) {
-            onChange(values.slice(0, -1));
-          }
-        }}
-        onPaste={(e) => {
-          e.preventDefault();
-          const text = e.clipboardData.getData("text");
-          const merged = draft + text;
-          // Only commit to chips when the paste contains item separators.
-          // A plain-text paste (e.g. pasting "-EMEA" after typing "Remote")
-          // stays in the input field so the user can keep editing.
-          if (/[,;\n\t\r]/.test(text)) commit(merged);
-          else setDraft(merged);
-        }}
-        onBlur={() => draft.trim() && commit(draft)}
-        placeholder={values.length ? "" : placeholder}
-      />
-    </div>
-  );
-}
 
 function Label({ children, hint }: { children: React.ReactNode; hint?: string }) {
   return (
@@ -117,7 +43,7 @@ export function FilterBuilder({
 
   return (
     <div className="space-y-4">
-      <style>{STYLE}</style>
+      <style>{KEYWORD_FIELD_STYLE}</style>
 
       <div>
         <Label hint={filters.positive.length === 0 ? "empty = every fresh posting" : undefined}>Roles to find</Label>
