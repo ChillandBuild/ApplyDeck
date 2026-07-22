@@ -1,10 +1,11 @@
 import { instrumentSerif } from "@/lib/fonts";
 
-// Brand mark — lowercase "co" on brand orange in Instrument Serif. Matches the
-// favicon (src/app/icon.tsx) and the career-ops-docs home one-for-one so the
-// app reads as a sibling. Dual meaning: "co" of career-ops AND "co" of
-// companies — the word the manifesto inverts ("…AI to choose companies").
+// ApplyDeck brand mark — serif "A" on a brand-orange card, with a second card
+// offset behind it: a literal "deck" of applications. Matches the favicon
+// (src/app/icon.tsx) one-for-one. Rendered with the app's existing design
+// tokens (Instrument Serif + --color-brand) so the mark reads native.
 export function CoMark({ size = 28 }: { size?: number }) {
+  const offset = Math.max(2, Math.round(size * 0.09));
   return (
     <span
       aria-hidden="true"
@@ -12,13 +13,17 @@ export function CoMark({ size = 28 }: { size?: number }) {
       style={{
         width: size,
         height: size,
-        fontSize: Math.round(size * 0.78),
+        fontSize: Math.round(size * 0.72),
         letterSpacing: "0.01em",
         lineHeight: 1,
-        paddingBottom: Math.round(size * 0.08),
+        paddingBottom: Math.round(size * 0.06),
+        // The "deck": a second card peeking out behind the front card.
+        boxShadow: `${offset}px ${offset}px 0 0 hsl(26 60% 38%)`,
+        marginRight: offset,
+        marginBottom: offset,
       }}
     >
-      co
+      A
     </span>
   );
 }

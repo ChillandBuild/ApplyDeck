@@ -38,7 +38,7 @@ export async function POST(req: Request) {
 
   if (!trackerCanDelete()) {
     return Response.json(
-      { error: "Removing a tracker row needs a newer career-ops — update to delete rows from here." },
+      { error: "Removing a tracker row needs a newer ApplyDeck engine — update to delete rows from here." },
       { status: 400 },
     );
   }

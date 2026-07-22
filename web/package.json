@@ -1,8 +1,8 @@
 {
-  "name": "@career-ops/web",
+  "name": "@applydeck/web",
   "version": "0.3.0",
   "private": true,
-  "description": "Official web experience for career-ops — local-first.",
+  "description": "ApplyDeck web experience — local-first.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
