@@ -51,7 +51,7 @@
   - Valid outcomes: `submitted | drafted | blocked | submit_failed_captcha | submit_failed_error | submit_aborted_knockout | submit_aborted_sensitive_field`
   - CLI: `node autonomy-log.mjs add --report 042 --company "Acme" --verdict auto_submit --reason ok --score 4.7 --vendor greenhouse --outcome submitted` → prints the appended line as JSON `{"ok":true,"line":"..."}`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `autonomy-log.test.mjs`:
 
@@ -127,12 +127,12 @@ console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) { console.log('Failures:', failures.join(' | ')); process.exit(1); }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node autonomy-log.test.mjs`
 Expected: FAIL — `Cannot find module ... autonomy-log.mjs` (exit non-zero).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `autonomy-log.mjs`:
 
@@ -258,12 +258,12 @@ if (isMain) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node autonomy-log.test.mjs`
 Expected: `8 passed, 0 failed`, exit 0.
 
-- [ ] **Step 5: Smoke-test the CLI (uses a temp root, not the repo's data/)**
+- [x] **Step 5: Smoke-test the CLI (uses a temp root, not the repo's data/)**
 
 ```bash
 cd /tmp && mkdir -p autonomy-smoke && cd autonomy-smoke
@@ -278,7 +278,7 @@ cd - && rm -rf /tmp/autonomy-smoke
 (Replace `<ABSOLUTE-REPO-ROOT>` with the checkout's absolute path.)
 Expected: two lines printed — the header and one `Smoke Co` row.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add autonomy-log.mjs autonomy-log.test.mjs
@@ -304,7 +304,7 @@ git commit -m "feat: autonomy audit log module (append-only TSV, daily submit co
   - `normalizeCompanyName(name) → string` — lowercase, strip punctuation/whitespace (used for blacklist + allowlist matching)
   - CLI: `node autonomy-gate.mjs --report 042 --company "Acme Corp" --vendor greenhouse --score 4.7 --run-count 0 [--dry-run]` → prints the verdict JSON on stdout. `--dry-run` adds `"dryRun": true` to the output and is otherwise identical (the gate never writes anything anyway; the flag exists so orchestration transcripts are self-documenting).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `autonomy-gate.test.mjs`:
 
@@ -421,12 +421,12 @@ console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) { console.log('Failures:', failures.join(' | ')); process.exit(1); }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node autonomy-gate.test.mjs`
 Expected: FAIL — `Cannot find module ... autonomy-gate.mjs` (exit non-zero).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `autonomy-gate.mjs`:
 
@@ -626,12 +626,12 @@ if (isMain) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node autonomy-gate.test.mjs`
 Expected: `25 passed, 0 failed`, exit 0.
 
-- [ ] **Step 5: Smoke-test the CLI against the real repo (no config yet ⇒ tier off)**
+- [x] **Step 5: Smoke-test the CLI against the real repo (no config yet ⇒ tier off)**
 
 Run from the repo root:
 ```bash
@@ -639,7 +639,7 @@ node autonomy-gate.mjs --report 001 --company "Acme" --vendor greenhouse --score
 ```
 Expected stdout (single line): `{"report":"001","verdict":"draft_only","reason":"tier_off","checks":[{"check":"tier","pass":false,"detail":"draft"}]}` — proving the gate is inert until the user opts in.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add autonomy-gate.mjs autonomy-gate.test.mjs
@@ -658,7 +658,7 @@ git commit -m "feat: deterministic autonomy gate (7 ordered checks, fail-to-draf
 - Consumes: nothing.
 - Produces: the documented `automation:` YAML shape that Task 2's `loadAutomationConfig` reads and Task 4's mode file references.
 
-- [ ] **Step 1: Add the log file to `.gitignore`**
+- [x] **Step 1: Add the log file to `.gitignore`**
 
 In `.gitignore`, find the existing `data/` entries (e.g. the line `data/scan-history.tsv`) and add this line alongside them:
 
@@ -666,7 +666,7 @@ In `.gitignore`, find the existing `data/` entries (e.g. the line `data/scan-his
 data/autonomy-log.tsv
 ```
 
-- [ ] **Step 2: Verify git ignores it**
+- [x] **Step 2: Verify git ignores it**
 
 ```bash
 touch data/autonomy-log.tsv
@@ -675,7 +675,7 @@ rm data/autonomy-log.tsv
 ```
 Expected: prints `data/autonomy-log.tsv` then `IGNORED`.
 
-- [ ] **Step 3: Append the automation block to `config/profile.example.yml`**
+- [x] **Step 3: Append the automation block to `config/profile.example.yml`**
 
 Append verbatim at the end of the file:
 
@@ -697,14 +697,14 @@ Append verbatim at the end of the file:
 #   schedule_hours: 6      # suggested cadence for /loop or cron
 ```
 
-- [ ] **Step 4: Verify the example file still parses as YAML**
+- [x] **Step 4: Verify the example file still parses as YAML**
 
 ```bash
 node -e "import('js-yaml').then(y => { y.default.load(require('fs').readFileSync('config/profile.example.yml','utf8')); console.log('YAML OK'); })" 2>/dev/null || node --input-type=module -e "import yaml from 'js-yaml'; import {readFileSync} from 'fs'; yaml.load(readFileSync('config/profile.example.yml','utf8')); console.log('YAML OK');"
 ```
 Expected: `YAML OK`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .gitignore config/profile.example.yml
@@ -724,7 +724,7 @@ git commit -m "chore: gitignore autonomy log, document automation config block"
 
 This task is prose, not code — there is no test file. Verification is Step 2's checklist.
 
-- [ ] **Step 1: Create `modes/autonomous-pipeline.md` with exactly this content**
+- [x] **Step 1: Create `modes/autonomous-pipeline.md` with exactly this content**
 
 ````markdown
 # Mode: autonomous-pipeline — Scheduled Scan → Evaluate → Gated Auto-Submit
@@ -821,7 +821,7 @@ step 1 automatically includes Apify results. Cap the actor's `maxItems`
 conservatively — every scheduled tick costs actor-run money.
 ````
 
-- [ ] **Step 2: Verify the mode file's cross-references all exist**
+- [x] **Step 2: Verify the mode file's cross-references all exist**
 
 ```bash
 for f in scan.mjs reserve-report-num.mjs set-status.mjs followup-seed.mjs merge-tracker.mjs application-answers.mjs autonomy-gate.mjs autonomy-log.mjs modes/auto-pipeline.md modes/apply.md modes/batch.md plugins/apify/skill.md; do
@@ -830,7 +830,7 @@ done
 ```
 Expected: twelve `OK` lines, zero `MISSING`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add modes/autonomous-pipeline.md
@@ -848,7 +848,7 @@ git commit -m "feat: autonomous-pipeline orchestrator mode (gated auto-submit)"
 - Consumes: the mode name `autonomous-pipeline` from Task 4 and the two script names from Tasks 1–2.
 - Produces: discoverability — the agent-facing router now routes to the new mode.
 
-- [ ] **Step 1: Add a Skill Modes row**
+- [x] **Step 1: Add a Skill Modes row**
 
 In `AGENTS.md`, find the Skill Modes table (`grep -n "Skill Modes" AGENTS.md`). Add this row directly after the `batch` row (`| Batch processes offers | \`batch\` |`):
 
@@ -856,7 +856,7 @@ In `AGENTS.md`, find the Skill Modes table (`grep -n "Skill Modes" AGENTS.md`). 
 | Wants scheduled unattended runs with gated auto-submit | `autonomous-pipeline` — scan → evaluate → draft; submits only what passes `autonomy-gate.mjs` (opt-in via `automation.tier: autonomous`) |
 ```
 
-- [ ] **Step 2: Add a Main Files row**
+- [x] **Step 2: Add a Main Files row**
 
 In the Main Files table (`grep -n "Main Files" AGENTS.md`), add after the `set-status.mjs` row:
 
@@ -865,14 +865,14 @@ In the Main Files table (`grep -n "Main Files" AGENTS.md`), add after the `set-s
 | `autonomy-log.mjs` | Append-only autonomy audit log (`data/autonomy-log.tsv`); daily submit counter source for the gate |
 ```
 
-- [ ] **Step 3: Verify the tables still render (pipe balance)**
+- [x] **Step 3: Verify the tables still render (pipe balance)**
 
 ```bash
 grep -n "autonomy-gate.mjs\|autonomous-pipeline" AGENTS.md
 ```
 Expected: 3 matching lines (one mode row, two file rows).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add AGENTS.md
@@ -889,21 +889,21 @@ git commit -m "docs: register autonomous-pipeline mode and autonomy scripts in A
 - Consumes: everything from Tasks 1–5.
 - Produces: recorded evidence (command output) that the default posture is inert and the gate + log round-trip works.
 
-- [ ] **Step 1: Run both test suites**
+- [x] **Step 1: Run both test suites**
 
 ```bash
 node autonomy-log.test.mjs && node autonomy-gate.test.mjs
 ```
 Expected: both end `... 0 failed`, overall exit 0.
 
-- [ ] **Step 2: Verify default posture is inert (no `automation:` block exists yet)**
+- [x] **Step 2: Verify default posture is inert (no `automation:` block exists yet)**
 
 ```bash
 node autonomy-gate.mjs --report 999 --company "Anywhere Inc" --vendor greenhouse --score 5.0 --run-count 0
 ```
 Expected: verdict `draft_only`, reason `tier_off` — a perfect-score application still cannot auto-submit until the user opts in.
 
-- [ ] **Step 3: Round-trip the counter**
+- [x] **Step 3: Round-trip the counter**
 
 ```bash
 node autonomy-log.mjs add --report 998 --company "Counter Test" --verdict auto_submit --reason ok --score 4.8 --vendor greenhouse --outcome submitted
@@ -911,7 +911,7 @@ node --input-type=module -e "import {readLogText, countTodaySubmitted} from './a
 ```
 Expected: `today submitted: 1`.
 
-- [ ] **Step 4: Clean the test artifact**
+- [x] **Step 4: Clean the test artifact**
 
 ```bash
 rm data/autonomy-log.tsv
@@ -919,7 +919,7 @@ git status --short
 ```
 Expected: `git status` shows a clean tree (the log was gitignored anyway; removing it keeps the checkout pristine for the user's first real run).
 
-- [ ] **Step 5: Commit any straggler and finish**
+- [x] **Step 5: Commit any straggler and finish**
 
 ```bash
 git status --short   # expect empty; nothing to commit for this task
