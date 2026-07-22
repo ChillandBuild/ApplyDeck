@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { TargetingCard } from "@/components/targeting-card";
 
 type Cli = {
   id: string;
@@ -302,6 +303,8 @@ export function ConfigForm() {
         </button>
         <span className="text-xs text-faint">Local-first · on our roadmap</span>
       </div>
+
+      <TargetingCard />
     </div>
   );
 }
