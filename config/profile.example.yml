@@ -251,3 +251,19 @@ cover_letter:
 #     cross_role_bucket: "all_EM_roles"
 #     applied_to: ["Senior Software Engineer"]
 #     last_apply_date: "2026-01-01"
+
+# -- Autonomous pipeline (optional) --------------------------------
+# Controls unattended auto-submission. With this block absent, or with
+# tier: draft, NOTHING is ever submitted automatically — identical to
+# default career-ops behavior. Flip tier to "autonomous" only after
+# reading modes/autonomous-pipeline.md and dry-running the gate.
+#
+# automation:
+#   tier: draft            # draft | autonomous — the master kill switch
+#   score_threshold: 4.5   # min evaluation score for auto-submit eligibility
+#   daily_submit_cap: 3    # max auto-submits per calendar day
+#   per_run_cap: 2         # max auto-submits per scheduled run
+#   company_allowlist: []  # empty = any company eligible; non-empty = ONLY these
+#   safe_vendors: [greenhouse, ashby]  # ATS vendors proven scriptable end-to-end
+#   schedule_hours: 6      # suggested cadence for /loop or cron
+

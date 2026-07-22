@@ -15,6 +15,7 @@ data/pdf-index.tsv
 data/agent-inbox.md
 data/active-interviews.md
 data/reply-candidates.json
+data/autonomy-log.tsv
 data/parser-output/**/*.json
 !data/parser-output/.gitkeep
 !data/parser-output/**/.gitkeep
