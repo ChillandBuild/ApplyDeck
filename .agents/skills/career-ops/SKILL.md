@@ -71,10 +71,13 @@ Determine the mode from `$mode`:
 | `interview-redflag` | `interview-redflag` |
 | `update` | `update` |
 | `cover` | `cover` |
+| `autonomous-pipeline` | `autonomous-pipeline` |
 
 **Auto-pipeline detection:** If `$mode` is not a known sub-command AND contains JD text (keywords: "responsibilities", "requirements", "qualifications", "about the role", "we're looking for", company name + role) or a URL to a JD, execute `auto-pipeline`.
 
-If `$mode` is not a sub-command AND doesn't look like a JD, show discovery.
+**Autonomous-pipeline detection:** If `$mode` is not a known sub-command AND contains the phrase "autonomous-pipeline" or "autonomous pipeline" (e.g. a scheduled/cron invocation saying "Run career-ops autonomous-pipeline mode..."), execute `autonomous-pipeline` regardless of JD-detection heuristics — this is how the scheduled loop (`/loop`, cron, or a cloud routine) invokes itself, often with zero prior conversation context, so it must not fall through to auto-pipeline or discovery.
+
+If `$mode` is not a sub-command AND doesn't look like a JD AND doesn't match autonomous-pipeline, show discovery.
 
 ---
 
@@ -163,7 +166,7 @@ If `modes/_custom.md` exists, read it after `modes/_profile.md` and before the s
 
 Read `modes/_shared.md` + `modes/_profile.md` (if exists) + `modes/_custom.md` (if exists) + `modes/{mode}.md`
 
-Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `pipeline`, `scan`, `batch`
+Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `pipeline`, `scan`, `batch`, `autonomous-pipeline`
 
 ### Standalone modes with profile and custom context
 
