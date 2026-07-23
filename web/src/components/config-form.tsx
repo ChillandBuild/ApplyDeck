@@ -14,7 +14,7 @@ import { cn } from "@/lib/cn";
 import { TargetingCard } from "@/components/targeting-card";
 import { CompanyListCard } from "@/components/company-list-card";
 import { AutomationSafetyCard } from "@/components/automation-safety-card";
-
+import { AutomationActivityLog } from "@/components/automation-activity-log";
 import { BlacklistCard } from "@/components/blacklist-card";
 
 
@@ -313,6 +313,7 @@ export function ConfigForm() {
       <TargetingCard />
       <CompanyListCard />
       <AutomationSafetyCard />
+      <AutomationActivityLog />
       <BlacklistCard />
     </div>
   );
