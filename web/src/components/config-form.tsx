@@ -13,6 +13,8 @@ import {
 import { cn } from "@/lib/cn";
 import { TargetingCard } from "@/components/targeting-card";
 import { AutomationSafetyCard } from "@/components/automation-safety-card";
+import { BlacklistCard } from "@/components/blacklist-card";
+
 
 
 type Cli = {
@@ -308,6 +310,7 @@ export function ConfigForm() {
 
       <TargetingCard />
       <AutomationSafetyCard />
+      <BlacklistCard />
     </div>
   );
 }
