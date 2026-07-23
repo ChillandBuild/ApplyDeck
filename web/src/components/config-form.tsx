@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TargetingCard } from "@/components/targeting-card";
+import { AutomationSafetyCard } from "@/components/automation-safety-card";
+
 
 type Cli = {
   id: string;
@@ -305,6 +307,7 @@ export function ConfigForm() {
       </div>
 
       <TargetingCard />
+      <AutomationSafetyCard />
     </div>
   );
 }
