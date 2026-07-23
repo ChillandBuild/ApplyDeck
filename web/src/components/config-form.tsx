@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TargetingCard } from "@/components/targeting-card";
+import { CompanyListCard } from "@/components/company-list-card";
 import { AutomationSafetyCard } from "@/components/automation-safety-card";
+
 import { BlacklistCard } from "@/components/blacklist-card";
 
 
@@ -309,6 +311,7 @@ export function ConfigForm() {
       </div>
 
       <TargetingCard />
+      <CompanyListCard />
       <AutomationSafetyCard />
       <BlacklistCard />
     </div>

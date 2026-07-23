@@ -108,3 +108,71 @@ test("refuses to write when portals.yml is malformed (409, no data loss)", async
   const after = fs.readFileSync(path.join(root, "portals.yml"), "utf8");
   assert.equal(after, before);
 });
+
+test("PUT addCompany appends a web-ui-tagged entry for a recognized Greenhouse URL", async () => {
+  const root = makeTempRoot("title_filter:\n  positive: []\n");
+  const res = await callPut(root, { addCompany: { name: "Test Co", careersUrl: "https://job-boards.greenhouse.io/testco" } });
+  assert.equal(res.status, 200);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "portals.yml"), "utf8")) as any;
+  const entry = doc.tracked_companies.find((c: any) => c.name === "Test Co");
+  assert.ok(entry);
+  assert.equal(entry.careers_url, "https://job-boards.greenhouse.io/testco");
+  assert.equal(entry.source, "web-ui");
+  assert.equal(entry.enabled, true);
+  assert.equal(entry.provider, undefined); // left for auto-detection, not hardcoded
+});
+
+test("PUT addCompany recognizes Ashby, Lever, and Workday URLs too", async () => {
+  const root = makeTempRoot("title_filter:\n  positive: []\n");
+  await callPut(root, { addCompany: { name: "A", careersUrl: "https://jobs.ashbyhq.com/a-co" } });
+  await callPut(root, { addCompany: { name: "B", careersUrl: "https://jobs.lever.co/b-co" } });
+  const res = await callPut(root, { addCompany: { name: "C", careersUrl: "https://c.wd5.myworkdayjobs.com/careers" } });
+  assert.equal(res.status, 200);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "portals.yml"), "utf8")) as any;
+  const names = doc.tracked_companies.map((c: any) => c.name);
+  assert.ok(names.includes("A") && names.includes("B") && names.includes("C"));
+});
+
+test("PUT addCompany rejects an unrecognized job-board URL", async () => {
+  const root = makeTempRoot("title_filter:\n  positive: []\n");
+  const res = await callPut(root, { addCompany: { name: "Nope Co", careersUrl: "https://nopeco.com/careers" } });
+  assert.equal(res.status, 400);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "portals.yml"), "utf8")) as any;
+  assert.ok(!doc.tracked_companies?.some((c: any) => c.name === "Nope Co"));
+});
+
+test("PUT addCompany rejects a duplicate careers_url among web-ui entries", async () => {
+  const root = makeTempRoot("title_filter:\n  positive: []\n");
+  await callPut(root, { addCompany: { name: "Test Co", careersUrl: "https://job-boards.greenhouse.io/testco" } });
+  const res = await callPut(root, { addCompany: { name: "Test Co Again", careersUrl: "https://job-boards.greenhouse.io/testco" } });
+  assert.equal(res.status, 409);
+});
+
+test("PUT removeCompany removes only a web-ui-tagged entry, by name", async () => {
+  const root = makeTempRoot("title_filter:\n  positive: []\n");
+  await callPut(root, { addCompany: { name: "Test Co", careersUrl: "https://job-boards.greenhouse.io/testco" } });
+  const res = await callPut(root, { removeCompany: "Test Co" });
+  assert.equal(res.status, 200);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "portals.yml"), "utf8")) as any;
+  assert.ok(!doc.tracked_companies?.some((c: any) => c.name === "Test Co"));
+});
+
+test("PUT removeCompany 404s on a name that isn't a web-ui-tagged entry (leaves curated entries alone)", async () => {
+  const root = makeTempRoot(
+    "title_filter:\n  positive: []\ntracked_companies:\n  - name: Anthropic\n    careers_url: https://job-boards.greenhouse.io/anthropic\n    enabled: true\n",
+  );
+  const res = await callPut(root, { removeCompany: "Anthropic" });
+  assert.equal(res.status, 404);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "portals.yml"), "utf8")) as any;
+  assert.ok(doc.tracked_companies.some((c: any) => c.name === "Anthropic")); // untouched
+});
+
+test("PUT addCompany caps web-ui-tagged companies at 30", async () => {
+  const root = makeTempRoot("title_filter:\n  positive: []\n");
+  for (let i = 0; i < 30; i++) {
+    await callPut(root, { addCompany: { name: `Co${i}`, careersUrl: `https://job-boards.greenhouse.io/co${i}` } });
+  }
+  const res = await callPut(root, { addCompany: { name: "Co30", careersUrl: "https://job-boards.greenhouse.io/co30" } });
+  assert.equal(res.status, 400);
+});
+

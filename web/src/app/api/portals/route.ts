@@ -13,6 +13,25 @@ export const dynamic = "force-dynamic";
 // + every other block. Atomic write, confirm-gated (setProfile/setPortals). This is
 // what loads the very first home scan once the user confirms their target roles.
 
+const ATS_VENDORS = [
+  { id: "greenhouse", test: (h: string) => /^job-boards(\.eu)?\.greenhouse\.io$/.test(h) || h === "boards.greenhouse.io" },
+  { id: "ashby", test: (h: string) => h === "jobs.ashbyhq.com" },
+  { id: "lever", test: (h: string) => /^jobs\.(eu\.)?lever\.co$/.test(h) },
+  { id: "workday", test: (h: string) => /\.myworkdayjobs\.com$/.test(h) },
+] as const;
+
+function detectVendor(careersUrl: string): string | null {
+  let hostname: string;
+  try {
+    hostname = new URL(careersUrl).hostname;
+  } catch {
+    return null;
+  }
+  return ATS_VENDORS.find((v) => v.test(hostname))?.id ?? null;
+}
+
+const MAX_WEB_UI_COMPANIES = 30;
+
 function isObj(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
@@ -69,6 +88,8 @@ type TargetingPatch = {
     area?: string;
     maxItems?: number;
   };
+  addCompany?: { name: string; careersUrl: string };
+  removeCompany?: string;
 };
 
 function capList(v: unknown, max = 24): string[] {
@@ -140,6 +161,39 @@ export async function PUT(req: Request) {
     doc.tracked_companies = nextCompanies;
   }
 
+  if (patch.addCompany !== undefined) {
+    const name = String(patch.addCompany.name ?? "").trim();
+    const careersUrl = String(patch.addCompany.careersUrl ?? "").trim();
+    if (!name || !careersUrl) {
+      return Response.json({ error: "name and careersUrl are required" }, { status: 400 });
+    }
+    const vendor = detectVendor(careersUrl);
+    if (!vendor) {
+      return Response.json(
+        { error: "Unrecognized job board — supported: Greenhouse, Ashby, Lever, Workday. Ask your admin to add this one manually." },
+        { status: 400 },
+      );
+    }
+    const companies = Array.isArray(doc.tracked_companies) ? doc.tracked_companies : [];
+    const webUiCompanies = companies.filter((c) => isObj(c) && c.source === "web-ui");
+    if (webUiCompanies.some((c) => isObj(c) && String(c.careers_url).trim() === careersUrl)) {
+      return Response.json({ error: "already tracking this company" }, { status: 409 });
+    }
+    if (webUiCompanies.length >= MAX_WEB_UI_COMPANIES) {
+      return Response.json({ error: `too many companies added via this screen (${MAX_WEB_UI_COMPANIES} max) — remove one first` }, { status: 400 });
+    }
+    doc.tracked_companies = [...companies, { name, careers_url: careersUrl, enabled: true, source: "web-ui" }];
+  }
+
+  if (patch.removeCompany !== undefined) {
+    const companies = Array.isArray(doc.tracked_companies) ? doc.tracked_companies : [];
+    const idx = companies.findIndex((c) => isObj(c) && c.source === "web-ui" && c.name === patch.removeCompany);
+    if (idx === -1) {
+      return Response.json({ error: "no web-ui-added company with that name" }, { status: 404 });
+    }
+    doc.tracked_companies = companies.filter((_, i) => i !== idx);
+  }
+
   try {
     atomicWriteWithBackup(file, yaml.dump(doc, { lineWidth: 100, noRefs: true }));
   } catch (e) {
@@ -147,4 +201,3 @@ export async function PUT(req: Request) {
   }
   return Response.json({ ok: true });
 }
-
