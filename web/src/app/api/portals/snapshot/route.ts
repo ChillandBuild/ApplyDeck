@@ -30,23 +30,26 @@ function strList(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
 }
 
+const EMPTY_SNAPSHOT = { positive: [], negative: [], alwaysAllow: [], block: [], apify: null, companies: [], searchSources: [] };
+
 export async function GET() {
   const file = path.join(careerOpsRoot(), "portals.yml");
   if (!fs.existsSync(file)) {
-    return Response.json({ positive: [], negative: [], alwaysAllow: [], block: [], apify: null, companies: [] });
+    return Response.json(EMPTY_SNAPSHOT);
   }
   let doc: Record<string, unknown>;
   try {
     const parsed = yaml.load(fs.readFileSync(file, "utf8"));
     doc = isObj(parsed) ? parsed : {};
   } catch {
-    return Response.json({ positive: [], negative: [], alwaysAllow: [], block: [], apify: null, companies: [], malformed: true });
+    return Response.json({ ...EMPTY_SNAPSHOT, malformed: true });
   }
   const tf = isObj(doc.title_filter) ? doc.title_filter : {};
   const lf = isObj(doc.location_filter) ? doc.location_filter : {};
   const companies = Array.isArray(doc.tracked_companies) ? doc.tracked_companies : [];
   const apifyEntry = companies.find((c) => isObj(c) && c.provider === "apify") as Record<string, unknown> | undefined;
   const input = apifyEntry && isObj(apifyEntry.input) ? apifyEntry.input : {};
+  const searchQueries = Array.isArray(doc.search_queries) ? doc.search_queries : [];
 
   return Response.json({
     positive: strList(tf.positive),
@@ -66,5 +69,16 @@ export async function GET() {
     companies: companies
       .filter((c: unknown) => isObj(c) && c.source === "web-ui")
       .map((c: any) => ({ name: c.name, careersUrl: c.careers_url, vendor: detectVendor(String(c.careers_url ?? "")) })),
+    // Each search_queries entry is a free WebSearch (site: filter), not tied to
+    // any ATS vendor — surfaced read/toggle-only so a non-technical client can
+    // turn a platform (LinkedIn, Glassdoor, Naukri, ...) on/off without editing
+    // the query text itself (that stays AI/CLI-edited, same as title_filter).
+    searchSources: searchQueries
+      .filter((q): q is Record<string, unknown> => isObj(q) && typeof q.name === "string")
+      .map((q) => ({
+        name: q.name as string,
+        query: typeof q.query === "string" ? q.query : "",
+        enabled: q.enabled !== false,
+      })),
   });
 }

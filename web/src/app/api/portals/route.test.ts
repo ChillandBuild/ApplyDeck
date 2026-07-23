@@ -25,6 +25,13 @@ location_filter:
     - "India"
   block:
     - "Poland"
+search_queries:
+  - name: "LinkedIn — India DS/ML/GenAI"
+    query: 'site:linkedin.com/jobs "Data Scientist" India'
+    enabled: true
+  - name: "Naukri — India DS/ML/GenAI"
+    query: 'site:naukri.com "Data Scientist" India'
+    enabled: false
 tracked_companies:
   - name: "Indeed India — DS/ML Intern (via Apify)"
     provider: apify
@@ -173,6 +180,39 @@ test("PUT addCompany caps web-ui-tagged companies at 30", async () => {
     await callPut(root, { addCompany: { name: `Co${i}`, careersUrl: `https://job-boards.greenhouse.io/co${i}` } });
   }
   const res = await callPut(root, { addCompany: { name: "Co30", careersUrl: "https://job-boards.greenhouse.io/co30" } });
+  assert.equal(res.status, 400);
+});
+
+test("PUT toggleSearchSource flips enabled on the matched search_queries entry, by name", async () => {
+  const root = makeTempRoot(BASE_YAML);
+  const res = await callPut(root, { toggleSearchSource: { name: "LinkedIn — India DS/ML/GenAI", enabled: false } });
+  assert.equal(res.status, 200);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "portals.yml"), "utf8")) as any;
+  const linkedin = doc.search_queries.find((q: any) => q.name === "LinkedIn — India DS/ML/GenAI");
+  assert.equal(linkedin.enabled, false);
+  const naukri = doc.search_queries.find((q: any) => q.name === "Naukri — India DS/ML/GenAI");
+  assert.equal(naukri.enabled, false); // untouched, was already false
+  assert.equal(linkedin.query, 'site:linkedin.com/jobs "Data Scientist" India'); // query text untouched
+});
+
+test("PUT toggleSearchSource can re-enable a disabled entry", async () => {
+  const root = makeTempRoot(BASE_YAML);
+  const res = await callPut(root, { toggleSearchSource: { name: "Naukri — India DS/ML/GenAI", enabled: true } });
+  assert.equal(res.status, 200);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "portals.yml"), "utf8")) as any;
+  const naukri = doc.search_queries.find((q: any) => q.name === "Naukri — India DS/ML/GenAI");
+  assert.equal(naukri.enabled, true);
+});
+
+test("PUT toggleSearchSource 404s on a name that doesn't exist in search_queries", async () => {
+  const root = makeTempRoot(BASE_YAML);
+  const res = await callPut(root, { toggleSearchSource: { name: "Nonexistent Source", enabled: true } });
+  assert.equal(res.status, 404);
+});
+
+test("PUT toggleSearchSource 400s when name is blank", async () => {
+  const root = makeTempRoot(BASE_YAML);
+  const res = await callPut(root, { toggleSearchSource: { name: "  ", enabled: true } });
   assert.equal(res.status, 400);
 });
 

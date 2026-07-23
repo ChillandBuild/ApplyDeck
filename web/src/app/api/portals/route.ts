@@ -90,6 +90,7 @@ type TargetingPatch = {
   };
   addCompany?: { name: string; careersUrl: string };
   removeCompany?: string;
+  toggleSearchSource?: { name: string; enabled: boolean };
 };
 
 function capList(v: unknown, max = 24): string[] {
@@ -183,6 +184,19 @@ export async function PUT(req: Request) {
       return Response.json({ error: `too many companies added via this screen (${MAX_WEB_UI_COMPANIES} max) — remove one first` }, { status: 400 });
     }
     doc.tracked_companies = [...companies, { name, careers_url: careersUrl, enabled: true, source: "web-ui" }];
+  }
+
+  if (patch.toggleSearchSource !== undefined) {
+    const name = String(patch.toggleSearchSource.name ?? "").trim();
+    if (!name) return Response.json({ error: "name is required" }, { status: 400 });
+    const queries = Array.isArray(doc.search_queries) ? doc.search_queries : [];
+    const idx = queries.findIndex((q) => isObj(q) && q.name === name);
+    if (idx === -1) {
+      return Response.json({ error: "no search source with that name" }, { status: 404 });
+    }
+    const nextQueries = [...queries];
+    nextQueries[idx] = { ...(queries[idx] as Record<string, unknown>), enabled: !!patch.toggleSearchSource.enabled };
+    doc.search_queries = nextQueries;
   }
 
   if (patch.removeCompany !== undefined) {
