@@ -34,6 +34,10 @@ export function TargetingCard() {
   const [apifyCountry, setApifyCountry] = useState("");
   const [apifyArea, setApifyArea] = useState("");
   const [apifyMaxItems, setApifyMaxItems] = useState(25);
+  const [apifyTokenConfigured, setApifyTokenConfigured] = useState(false);
+  const [typedApifyToken, setTypedApifyToken] = useState("");
+  const [tokenSaving, setTokenSaving] = useState(false);
+  const [tokenError, setTokenError] = useState<string | null>(null);
   const [scheduleHours, setScheduleHours] = useState(6);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -43,12 +47,14 @@ export function TargetingCard() {
     let cancelled = false;
     (async () => {
       try {
-        const [portalsRes, automationRes] = await Promise.all([
+        const [portalsRes, automationRes, secretRes] = await Promise.all([
           fetch("/api/portals/snapshot"),
           fetch("/api/automation"),
+          fetch("/api/secrets/apify-token"),
         ]);
         const portals = (await portalsRes.json()) as PortalsSnapshot;
         const automation = (await automationRes.json()) as { scheduleHours: number };
+        const secret = (await secretRes.json()) as { configured: boolean };
         if (cancelled) return;
         setPositive(portals.positive ?? []);
         setNegative(portals.negative ?? []);
@@ -63,6 +69,7 @@ export function TargetingCard() {
           setApifyMaxItems(portals.apify.maxItems);
         }
         setScheduleHours(automation.scheduleHours ?? 6);
+        setApifyTokenConfigured(!!secret.configured);
       } catch {
         if (!cancelled) setError("Could not load current targeting — check the server is running.");
       } finally {
@@ -73,6 +80,28 @@ export function TargetingCard() {
       cancelled = true;
     };
   }, []);
+
+  const saveToken = async (val: string) => {
+    setTokenSaving(true);
+    setTokenError(null);
+    try {
+      const res = await fetch("/api/secrets/apify-token", {
+        method: "PUT",
+        body: JSON.stringify({ token: val }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "could not save token");
+      }
+      const data = await res.json();
+      setApifyTokenConfigured(!!data.configured);
+      setTypedApifyToken("");
+    } catch (e) {
+      setTokenError(e instanceof Error ? e.message : "could not save token");
+    } finally {
+      setTokenSaving(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -141,8 +170,8 @@ export function TargetingCard() {
         </div>
 
         {apifyPresent && (
-          <div className="rounded-xl border border-border bg-surface/30 p-4">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="rounded-xl border border-border bg-surface/30 p-4 space-y-4">
+            <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-foreground">Indeed search</span>
               <button
                 type="button"
@@ -171,6 +200,47 @@ export function TargetingCard() {
                 Max results <span className="text-faint">(caps at 50)</span>
                 <input type="number" min={1} max={50} value={apifyMaxItems} onChange={(e) => setApifyMaxItems(Number(e.target.value))} className="mt-1 w-full rounded-md border border-border bg-surface/40 px-2 py-1.5 text-sm" />
               </label>
+            </div>
+
+            <div className="border-t border-border/60 pt-3">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-muted font-medium">Apify Token</span>
+                <span className="text-faint">
+                  {apifyTokenConfigured ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-emerald-500" /> Using your own token{" "}
+                      <button type="button" onClick={() => saveToken("")} className="text-brand hover:underline">
+                        (Clear)
+                      </button>
+                    </span>
+                  ) : (
+                    "Using the shared token"
+                  )}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={typedApifyToken}
+                  onChange={(e) => setTypedApifyToken(e.target.value)}
+                  onBlur={() => typedApifyToken.trim() && saveToken(typedApifyToken.trim())}
+                  placeholder="Paste your own Apify token…"
+                  autoComplete="off"
+                  className="flex-1 rounded-md border border-border bg-surface/40 px-2 py-1.5 font-mono text-sm outline-none placeholder:text-faint"
+                />
+                <button
+                  type="button"
+                  onClick={() => typedApifyToken.trim() && saveToken(typedApifyToken.trim())}
+                  disabled={tokenSaving || !typedApifyToken.trim()}
+                  className="rounded-md border border-border bg-surface-hover px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-50"
+                >
+                  {tokenSaving ? <Loader2 className="size-3 animate-spin" /> : "Save token"}
+                </button>
+              </div>
+              {tokenError && <p className="mt-1 text-xs text-red-600">{tokenError}</p>}
+              <p className="mt-1.5 text-xs text-faint">
+                Your token is stored locally in this instance's <code className="font-mono text-[11px]">.env</code> file and is never shown again after saving. Takes effect on the next scan — no restart needed.
+              </p>
             </div>
           </div>
         )}
