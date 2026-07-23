@@ -2,15 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (or subagent-driven-development) to implement task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Expose the autonomous-pipeline's safety caps — `score_threshold`, `daily_submit_cap`, `per_run_cap`, `company_allowlist`, `safe_vendors` — as editable form fields on the web Config page, so a non-technical client can tune how cautious auto-submit is without touching YAML.
+**Goal:** Expose the autonomous-pipeline's safety caps — `tier`, `score_threshold`, `daily_submit_cap`, `per_run_cap`, `company_allowlist`, `safe_vendors` — as editable form fields on the web Config page, so a non-technical client can turn auto-submit on/off and tune how cautious it is, per their own instance, without an operator touching YAML for them.
 
-**Architecture:** Extend the existing `web/src/app/api/automation/route.ts` (currently only handles `scheduleHours`) to also read/write these five fields, using the same malformed-YAML guard already proven in that route. Add a new `AutomationSafetyCard` component — separate from `TargetingCard`, not merged into it, because this is safety config, not job-targeting config, and non-tech users benefit from that being a visually distinct section. `tier` (draft/autonomous) is READ but never WRITTEN by this route — that boundary from the original implementation is preserved and reinforced, not loosened.
+**Architecture:** Extend the existing `web/src/app/api/automation/route.ts` (currently only handles `scheduleHours`) to also read/write these six fields, using the same malformed-YAML guard already proven in that route. Add a new `AutomationSafetyCard` component — separate from `TargetingCard`, not merged into it, because this is safety config, not job-targeting config, and non-tech users benefit from that being a visually distinct section. `tier` (draft/autonomous) is now a client-controlled switch: validated server-side against a closed two-value enum (`"draft" | "autonomous"`, anything else rejected with 400), and gated client-side behind an explicit confirm step before it can be turned on — this is the one field on the card with real consequences, so it gets a deliberate second click, not silent auto-save.
 
 **Tech Stack:** Next.js 16 App Router, TypeScript, `js-yaml`, existing `atomicWriteWithBackup`, existing `KeywordField` chip component (reused for `company_allowlist`).
 
 ## Global Constraints
 
-- **`tier` stays read-only through this entire feature.** The GET response includes it (so the UI can show current state), but no PUT body field can ever set it — no checkbox, no toggle, nothing. This is a repeat of the existing route's own design comment; do not add a way around it "for convenience."
+- **`tier` is settable, but through a closed enum only.** `PUT` accepts `tier: "draft" | "autonomous"` — any other value (typo, arbitrary string, boolean, number) is a 400, not a silent coercion. There is no partial/soft state between the two.
+- **Turning `tier` on is a two-step client action, not a side effect of the general Save button.** The UI must get an explicit confirmation (a native `confirm()` is sufficient — no need for a custom modal) before it includes `tier: "autonomous"` in a PUT, with copy that says plainly what turning it on means: the system can submit applications without a human reviewing them first, within the limits configured below. Turning it back OFF does not require confirmation — making the system more conservative never needs a safety gate.
 - **`safe_vendors` is a closed set**, not free text: `greenhouse | ashby | lever | workday`. These are the only vendors `modes/autonomous-pipeline.md` knows how to detect and the only ones with documented ATS quirks in `modes/apply.md`. Render as checkboxes, not a `KeywordField` — a typo'd vendor string must be structurally impossible, not just discouraged.
 - **`score_threshold`** clamps to `[1, 5]` server-side, one decimal place.
 - **`daily_submit_cap`** and **`per_run_cap`** clamp to `[0, 20]` server-side — 0 is valid (functionally pauses auto-submit without touching `tier`); 20 is a sanity ceiling, not a real expected value.
@@ -23,9 +24,9 @@
 
 | File | Status | Responsibility |
 |---|---|---|
-| `web/src/app/api/automation/route.ts` | modify | Extend GET/PUT to cover the 5 safety fields; `tier` becomes read-only passthrough |
-| `web/src/app/api/automation/route.test.ts` | modify | Add coverage for the new fields, the closed-vendor-set rule, and the “tier is never written” guarantee |
-| `web/src/components/automation-safety-card.tsx` | create | New Config-page card: score threshold, caps, vendor checkboxes, allowlist chips, read-only tier badge |
+| `web/src/app/api/automation/route.ts` | modify | Extend GET/PUT to cover the 5 caps plus `tier` itself, `tier` validated against a closed enum |
+| `web/src/app/api/automation/route.test.ts` | modify | Add coverage for the new fields, the closed-vendor-set rule, and the tier enum guard (valid values apply, invalid values 400 the whole request) |
+| `web/src/components/automation-safety-card.tsx` | create | New Config-page card: tier on/off switch (confirm-gated), score threshold, caps, vendor checkboxes, allowlist chips |
 | `web/src/components/config-form.tsx` | modify | Render `<AutomationSafetyCard />` alongside `<TargetingCard />` |
 
 ---
@@ -42,7 +43,7 @@
   - `GET /api/automation` now returns:
     ```ts
     {
-      tier: "draft" | "autonomous",   // READ-ONLY — see note below
+      tier: "draft" | "autonomous",
       scheduleHours: number,
       scoreThreshold: number,
       dailySubmitCap: number,
@@ -51,7 +52,7 @@
       safeVendors: ("greenhouse" | "ashby" | "lever" | "workday")[],
     }
     ```
-  - `PUT /api/automation` body may include any subset of: `scheduleHours`, `scoreThreshold`, `dailySubmitCap`, `perRunCap`, `companyAllowlist`, `safeVendors`. **`tier` in the body is silently ignored** — not an error, just never read, so a stray field from a future client can't accidentally flip it.
+  - `PUT /api/automation` body may include any subset of: `tier`, `scheduleHours`, `scoreThreshold`, `dailySubmitCap`, `perRunCap`, `companyAllowlist`, `safeVendors`. **`tier`, if present, must be exactly `"draft"` or `"autonomous"`** — any other value is a 400 and the write does not happen at all (not even the other fields in the same request), since a rejected `tier` means the request's intent was ambiguous.
   - Response: `{ ok: true, ...the-fields-that-were-set }`, same envelope shape as before.
 
 - [ ] **Step 1: Write the failing tests (append to the existing test file)**
@@ -99,13 +100,39 @@ automation:
   assert.equal(doc.automation.schedule_hours, 6); // untouched — wasn't in the body
 });
 
-test("PUT ignores a tier field in the body — cannot flip tier through this route", async () => {
+test("PUT sets tier to autonomous when given a valid value", async () => {
   const root = makeTempRoot("automation:\n  tier: draft\n  schedule_hours: 6\n");
-  const res = await call(root, "PUT", { tier: "autonomous", scoreThreshold: 4.0 });
+  const res = await call(root, "PUT", { tier: "autonomous" });
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.tier, "autonomous");
+  const doc = yaml.load(fs.readFileSync(path.join(root, "config", "profile.yml"), "utf8"));
+  assert.equal(doc.automation.tier, "autonomous");
+});
+
+test("PUT sets tier back to draft when given a valid value", async () => {
+  const root = makeTempRoot("automation:\n  tier: autonomous\n  schedule_hours: 6\n");
+  const res = await call(root, "PUT", { tier: "draft" });
   assert.equal(res.status, 200);
   const doc = yaml.load(fs.readFileSync(path.join(root, "config", "profile.yml"), "utf8"));
-  assert.equal(doc.automation.tier, "draft"); // still draft — the body's tier field was ignored
-  assert.equal(doc.automation.score_threshold, 4.0); // the OTHER field in the same request did apply
+  assert.equal(doc.automation.tier, "draft");
+});
+
+test("PUT rejects an invalid tier value — 400, no write, unrelated fields also not applied", async () => {
+  const root = makeTempRoot("automation:\n  tier: draft\n  score_threshold: 4.5\n  schedule_hours: 6\n");
+  const res = await call(root, "PUT", { tier: "yolo", scoreThreshold: 2.0 });
+  assert.equal(res.status, 400);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "config", "profile.yml"), "utf8"));
+  assert.equal(doc.automation.tier, "draft"); // unchanged
+  assert.equal(doc.automation.score_threshold, 4.5); // unchanged — the whole request was rejected
+});
+
+test("PUT omitting tier leaves the existing tier untouched", async () => {
+  const root = makeTempRoot("automation:\n  tier: autonomous\n  schedule_hours: 6\n");
+  const res = await call(root, "PUT", { scoreThreshold: 4.0 });
+  assert.equal(res.status, 200);
+  const doc = yaml.load(fs.readFileSync(path.join(root, "config", "profile.yml"), "utf8"));
+  assert.equal(doc.automation.tier, "autonomous"); // untouched — wasn't in the body
 });
 
 test("PUT clamps score_threshold to [1, 5]", async () => {
@@ -154,7 +181,7 @@ test("PUT still refuses malformed profile.yml (409, no data loss) with safety fi
 - [ ] **Step 2: Run tests to verify the new ones fail**
 
 Run: `cd web && node --test src/app/api/automation/route.test.ts`
-Expected: the 4 pre-existing tests still pass; the 8 new ones FAIL (fields don't exist yet on the route).
+Expected: the 4 pre-existing tests still pass; the 11 new ones FAIL (fields don't exist yet on the route).
 
 - [ ] **Step 3: Rewrite the route implementation**
 
@@ -172,11 +199,14 @@ export const dynamic = "force-dynamic";
 
 // Merge-safe reader/writer for config/profile.yml's `automation` block. Mirrors
 // the guard pattern in api/profile/route.ts: never overwrite a file that fails
-// to parse. This route deliberately never WRITES `tier` — switching to
-// "autonomous" needs the full context in modes/autonomous-pipeline.md, not a
-// dropdown in a form. A `tier` key in a PUT body is silently ignored, not
-// rejected, so a future client sending the full GET shape back unmodified
-// can't accidentally flip it either.
+// to parse. `tier` (draft/autonomous) is writable here — each client controls
+// their own instance's auto-submit switch — but only through the closed
+// "draft" | "autonomous" enum; any other value is a 400 and the ENTIRE request
+// is rejected, not just the tier field, since an invalid tier means intent was
+// ambiguous. The confirm-before-enabling UX lives client-side in
+// AutomationSafetyCard; this route only enforces the enum.
+
+const TIER_SET = new Set(["draft", "autonomous"]);
 
 const SAFE_VENDOR_SET = ["greenhouse", "ashby", "lever", "workday"] as const;
 type SafeVendor = (typeof SAFE_VENDOR_SET)[number];
@@ -247,13 +277,13 @@ export async function GET() {
 }
 
 type SafetyPatch = {
+  tier?: string;
   scheduleHours?: number;
   scoreThreshold?: number;
   dailySubmitCap?: number;
   perRunCap?: number;
   companyAllowlist?: string[];
   safeVendors?: string[];
-  // tier?: never read, intentionally not in this type
 };
 
 export async function PUT(req: Request) {
@@ -262,6 +292,10 @@ export async function PUT(req: Request) {
     body = (await req.json()) as SafetyPatch;
   } catch {
     return Response.json({ error: "bad json" }, { status: 400 });
+  }
+
+  if (body.tier !== undefined && !TIER_SET.has(body.tier)) {
+    return Response.json({ error: 'tier must be "draft" or "autonomous"' }, { status: 400 });
   }
 
   const root = careerOpsRoot();
@@ -273,6 +307,10 @@ export async function PUT(req: Request) {
   const automation = isObj(doc.automation) ? { ...doc.automation } : {};
   const out: Record<string, unknown> = {};
 
+  if (body.tier !== undefined) {
+    automation.tier = body.tier;
+    out.tier = body.tier;
+  }
   if (body.scheduleHours !== undefined) {
     const n = Number(body.scheduleHours);
     if (!Number.isFinite(n)) return Response.json({ error: "scheduleHours must be a number" }, { status: 400 });
@@ -308,9 +346,6 @@ export async function PUT(req: Request) {
     automation.safe_vendors = filtered;
     out.safeVendors = filtered;
   }
-  // NOTE: `body.tier` is never read, never written. This is intentional — see
-  // the module comment. Do not add an `if (body.tier !== undefined)` branch.
-
   const merged = { ...doc, automation };
   const file = path.join(root, "config", "profile.yml");
   try {
@@ -325,7 +360,7 @@ export async function PUT(req: Request) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd web && node --test src/app/api/automation/route.test.ts`
-Expected: all 12 tests pass (4 original + 8 new).
+Expected: all 15 tests pass (4 original + 11 new).
 
 - [ ] **Step 5: Typecheck**
 
@@ -335,7 +370,7 @@ Run: `cd web && npx tsc --noEmit` — Expected: exit 0.
 
 ```bash
 git add web/src/app/api/automation/route.ts web/src/app/api/automation/route.test.ts
-git commit -m "feat(web): expose automation safety caps via /api/automation, tier stays read-only"
+git commit -m "feat(web): expose automation safety caps + tier switch via /api/automation"
 ```
 
 ---
@@ -390,6 +425,8 @@ export function AutomationSafetyCard() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tierSaving, setTierSaving] = useState(false);
+  const [tierError, setTierError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -417,6 +454,33 @@ export function AutomationSafetyCard() {
 
   const toggleVendor = (v: string) => {
     setSafeVendors((cur) => (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]));
+  };
+
+  const requestTierChange = async (next: "draft" | "autonomous") => {
+    if (next === tier || tierSaving) return;
+    if (next === "autonomous") {
+      const ok = window.confirm(
+        "Turn auto-submit ON?\n\nApplyDeck will be able to submit applications on your behalf, automatically, without you reviewing them first — within the limits set below (minimum score, daily cap, allowed companies/platforms).\n\nYou can turn this off again at any time.",
+      );
+      if (!ok) return;
+    }
+    setTierSaving(true);
+    setTierError(null);
+    try {
+      const res = await fetch("/api/automation", {
+        method: "PUT",
+        body: JSON.stringify({ tier: next }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "could not change auto-submit");
+      }
+      setTier(next);
+    } catch (e) {
+      setTierError(e instanceof Error ? e.message : "could not change auto-submit");
+    } finally {
+      setTierSaving(false);
+    }
   };
 
   const save = async () => {
@@ -464,23 +528,42 @@ export function AutomationSafetyCard() {
       <p className="mb-1 text-sm text-faint">
         How cautious auto-submit is. These limits only matter when auto-submit is actually on.
       </p>
-      <div
-        className={cn(
-          "mb-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium",
-          tier === "autonomous"
-            ? "border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-            : "border-border bg-surface-hover text-muted",
-        )}
-      >
-        <span className={cn("size-1.5 rounded-full", tier === "autonomous" ? "bg-red-500" : "bg-muted")} />
-        Auto-submit is currently {tier === "autonomous" ? "ON" : "OFF"}
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={tier === "autonomous"}
+          disabled={tierSaving}
+          onClick={() => requestTierChange(tier === "autonomous" ? "draft" : "autonomous")}
+          className={cn(
+            "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-60",
+            tier === "autonomous" ? "bg-red-500" : "bg-border",
+          )}
+        >
+          <span
+            className={cn(
+              "inline-block size-5 transform rounded-full bg-white shadow transition-transform",
+              tier === "autonomous" ? "translate-x-6" : "translate-x-1",
+            )}
+          />
+        </button>
+        <div
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium",
+            tier === "autonomous"
+              ? "border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+              : "border-border bg-surface-hover text-muted",
+          )}
+        >
+          <span className={cn("size-1.5 rounded-full", tier === "autonomous" ? "bg-red-500" : "bg-muted")} />
+          Auto-submit is {tierSaving ? "updating…" : tier === "autonomous" ? "ON" : "OFF"}
+        </div>
       </div>
-      {tier !== "autonomous" && (
-        <p className="mb-6 -mt-4 text-xs text-faint">
-          These limits are saved but have no effect while auto-submit is off. Turning auto-submit on itself isn't done
-          from this page — ask your ApplyDeck admin.
-        </p>
-      )}
+      <p className="mb-6 text-xs text-faint">
+        When OFF, ApplyDeck prepares applications for you to review and send yourself. When ON, it submits on its own —
+        but only for jobs that clear every limit below.
+      </p>
+      {tierError && <p className="mb-6 -mt-4 text-xs text-red-600">{tierError}</p>}
 
       <div className="space-y-5">
         <div className="grid gap-5 sm:grid-cols-3">
@@ -594,17 +677,22 @@ With the dev server running on port 3001:
 ```bash
 curl -s http://localhost:3001/api/automation
 ```
-Expected: JSON including `tier`, `scoreThreshold`, `dailySubmitCap`, `perRunCap`, `companyAllowlist`, `safeVendors` — reflecting whatever is actually in `config/profile.yml` right now (if `tier` is currently `"autonomous"` from prior testing, it should show `"autonomous"` here too — READ, not overwritten).
+Expected: JSON including `tier`, `scoreThreshold`, `dailySubmitCap`, `perRunCap`, `companyAllowlist`, `safeVendors` — reflecting whatever is actually in `config/profile.yml` right now.
 
 ```bash
 curl -s -X PUT http://localhost:3001/api/automation -d '{"dailySubmitCap":7}'
 curl -s http://localhost:3001/api/automation
 ```
-Expected: `dailySubmitCap` is now `7`; **`tier` is unchanged** from before this PUT — confirm this explicitly, it's the one invariant that must never regress.
+Expected: `dailySubmitCap` is now `7`; `tier` is unchanged from before this PUT, since it wasn't in the body.
 
-Then restore the original value: `curl -s -X PUT http://localhost:3001/api/automation -d '{"dailySubmitCap":3}'`.
+```bash
+curl -s -X PUT http://localhost:3001/api/automation -d '{"tier":"nonsense"}'
+```
+Expected: `400`, and a follow-up `GET` shows `tier` unchanged — confirm the enum guard actually rejects bad input rather than coercing it.
 
-Open `http://localhost:3001/config` in a browser: confirm the "Automation Safety" section renders below Job Targeting, shows the correct ON/OFF tier badge, and editing a cap + clicking Save persists after a page reload.
+Then restore `dailySubmitCap`: `curl -s -X PUT http://localhost:3001/api/automation -d '{"dailySubmitCap":3}'`.
+
+Open `http://localhost:3001/config` in a browser: confirm the "Automation Safety" section renders below Job Targeting, the switch reflects the real current tier, clicking it to turn ON triggers the browser confirm dialog with the stated copy, canceling that dialog leaves the switch unchanged, confirming it flips the switch and persists immediately (reload the page — it should still show ON), and editing a cap + clicking "Save automation settings" persists after a reload without touching the switch.
 
 - [ ] **Step 5: Commit**
 
@@ -617,6 +705,6 @@ git commit -m "feat(web): Automation Safety card on the Config page (caps, allow
 
 ## Self-Review (completed by plan author)
 
-- **Spec coverage:** all 5 requested fields (score_threshold, daily_submit_cap, per_run_cap, company_allowlist, safe_vendors) → Task 1 (route) + Task 2 (UI); `tier` explicitly excluded per the original design rationale, with 2 dedicated tests proving it can't be set through this surface even when included in the request body; closed vendor enum enforced server-side, not just in the UI; empty-allowlist semantics explained in the UI copy, not left implicit.
+- **Spec coverage:** all 6 fields (tier, score_threshold, daily_submit_cap, per_run_cap, company_allowlist, safe_vendors) → Task 1 (route) + Task 2 (UI); `tier` is client-settable but constrained to a closed two-value enum server-side (invalid values 400 the whole request) and gated behind an explicit browser-confirm step client-side before it can be turned ON (never gated turning it OFF); closed vendor enum enforced server-side, not just in the UI; empty-allowlist semantics explained in the UI copy, not left implicit.
 - **Placeholder scan:** no TBD/TODO; every step has complete, runnable code.
 - **Type consistency:** `AutomationSnapshot` in the component matches the GET route's response shape field-for-field (`tier`, `scoreThreshold`, `dailySubmitCap`, `perRunCap`, `companyAllowlist`, `safeVendors`); the PUT body shape in the component's `save()` matches `SafetyPatch` in the route; camelCase (client/API) vs snake_case (YAML) boundary is kept at the route layer only, consistent with the existing Targeting UI's convention.
