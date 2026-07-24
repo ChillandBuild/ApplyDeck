@@ -40,7 +40,7 @@ export function ApifyComposer({
           fetch("/api/portals/snapshot"),
         ]);
         const metaData = (await metaRes.json()) as { platforms?: ApifyPlatformMeta[] };
-        const snapshotData = (await snapshotRes.json()) as { positive?: string[] };
+        const snapshotData = (await snapshotRes.json()) as { positive?: string[]; alwaysAllow?: string[] };
 
         if (!cancelled) {
           if (Array.isArray(metaData.platforms)) {
@@ -50,6 +50,9 @@ export function ApifyComposer({
             setKeywords(snapshotData.positive.slice(0, 3)); // seed top 3 keywords
           } else {
             setKeywords(["Software Engineer"]);
+          }
+          if (Array.isArray(snapshotData.alwaysAllow) && snapshotData.alwaysAllow.length > 0) {
+            setLocation(snapshotData.alwaysAllow[0]);
           }
         }
       } catch {

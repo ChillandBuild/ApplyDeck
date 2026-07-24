@@ -42,9 +42,26 @@ export function mapSerperItem(item, queryName) {
   };
 }
 
+export function buildTitleFilter(titleFilter) {
+  const normalize = (arr) => (Array.isArray(arr) ? arr : [])
+    .filter((k) => typeof k === 'string')
+    .map((k) => k.trim().toLowerCase())
+    .filter(Boolean);
+  const positive = normalize(titleFilter?.positive);
+  const negative = normalize(titleFilter?.negative);
+
+  return (title) => {
+    const lower = (title || '').toLowerCase();
+    if (negative.some((kw) => lower.includes(kw))) return false;
+    if (positive.length === 0) return true;
+    return positive.some((kw) => lower.includes(kw));
+  };
+}
+
 /** Process a single search query string */
 export async function processQuery(queryObj, apiKey, emit, deps = {}) {
   const runQueryFn = deps.runQueryFn || runSerperQuery;
+  const titleFilter = deps.titleFilter || null;
   const name = queryObj.name || queryObj.query;
   emit({ kind: 'sourceStart', source: name });
 
@@ -54,6 +71,7 @@ export async function processQuery(queryObj, apiKey, emit, deps = {}) {
     for (const item of results) {
       const offer = mapSerperItem(item, name);
       if (offer) {
+        if (titleFilter && !titleFilter(offer.title)) continue;
         emit({ kind: 'offer', offer });
         count++;
       }
@@ -100,25 +118,22 @@ if (isMain) {
   const queriesPath = queriesFlagIdx >= 0 ? args[queriesFlagIdx + 1] : null;
 
   let queries = [];
-  if (queriesPath) {
-    try {
+  let titleFilter = null;
+  try {
+    const portalsFile = path.resolve('portals.yml');
+    const doc = yaml.load(readFileSync(portalsFile, 'utf8')) || {};
+    titleFilter = buildTitleFilter(doc.title_filter);
+    if (queriesPath) {
       queries = JSON.parse(readFileSync(queriesPath, 'utf8'));
-    } catch (err) {
-      emit({ kind: 'error', message: `Could not read --queries file: ${err.message}` });
-      process.exit(1);
-    }
-  } else {
-    try {
-      const portalsFile = path.resolve('portals.yml');
-      const doc = yaml.load(readFileSync(portalsFile, 'utf8')) || {};
+    } else {
       const sq = Array.isArray(doc.search_queries) ? doc.search_queries : [];
       queries = sq.filter((q) => q && q.enabled !== false && q.query);
-    } catch (err) {
-      emit({ kind: 'error', message: `Could not read portals.yml search_queries: ${err.message}` });
-      process.exit(1);
     }
+  } catch (err) {
+    emit({ kind: 'error', message: `Could not read portals.yml: ${err.message}` });
+    process.exit(1);
   }
 
-  const offers = await runAllQueries(queries, apiKey, emit);
+  const offers = await runAllQueries(queries, apiKey, emit, { titleFilter });
   emit({ kind: 'done', count: offers.length, offers });
 }

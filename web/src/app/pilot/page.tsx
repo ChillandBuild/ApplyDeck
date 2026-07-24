@@ -1,6 +1,7 @@
 import { Bot } from "lucide-react";
 import { instrumentSerif } from "@/lib/fonts";
 import { TargetingCard } from "@/components/targeting-card";
+import { ScheduledApifyCard } from "@/components/scheduled-apify-card";
 import { AutomationSafetyCard } from "@/components/automation-safety-card";
 import { AutomationActivityLog } from "@/components/automation-activity-log";
 
@@ -28,6 +29,11 @@ export default function PilotPage() {
       {/* Section 1: Job Targeting & Schedules */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <TargetingCard />
+      </section>
+
+      {/* Section 2: Scheduled Apify Scrapers */}
+      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <ScheduledApifyCard />
       </section>
 
       {/* Section 2: Automation Safety Guardrails */}

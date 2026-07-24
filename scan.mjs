@@ -44,6 +44,8 @@ import { classifyFetchError } from './verify-portals.mjs';
 import { fingerprintText, findCrossListings } from './fingerprint-core.mjs';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
+import { expand } from './apify-platforms.mjs';
+import { jobToEntry, runAll } from './explore-apify.mjs';
 
 try {
   const { config } = await import('dotenv');
@@ -1586,6 +1588,27 @@ function guardStatusFor(code) {
   return 'skipped_invalid_url';
 }
 
+export async function runApifySearchScan(doc, token, opts = {}) {
+  const cfg = doc?.apify_search;
+  if (!cfg || cfg.enabled === false) return [];
+  const keywords = Array.isArray(cfg.keywords) ? cfg.keywords.filter(Boolean) : [];
+  const platforms = Array.isArray(cfg.platforms) ? cfg.platforms.filter(Boolean) : [];
+  if (keywords.length === 0 || platforms.length === 0 || !token) return [];
+
+  const jobs = expand(keywords, platforms, { location: cfg.location, country: cfg.country, max: cfg.max });
+  const entries = jobs.map(jobToEntry);
+  const emit = opts.emit || (() => {});
+  const offers = await runAll(entries, token, emit, { runActorFn: opts.runActorFn });
+
+  const filtered = [];
+  for (const offer of offers) {
+    if (opts.titleFilter && !opts.titleFilter(offer.title)) continue;
+    if (opts.locationFilter && !opts.locationFilter(offer.location)) continue;
+    filtered.push(offer);
+  }
+  return filtered;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
@@ -1897,6 +1920,20 @@ async function main() {
   });
 
   await parallelFetch(tasks, CONCURRENCY);
+
+  // 5.4. Run scheduled Apify search jobs if configured.
+  // Gated on !dryRun: Apify actors cost real credits per run, so a --dry-run
+  // preview must NOT fire them (dry-run is "look, don't spend").
+  const apifyToken = process.env.APIFY_TOKEN || '';
+  if (!dryRun && apifyToken && config.apify_search && config.apify_search.enabled !== false) {
+    const apifyOffers = await runApifySearchScan(config, apifyToken, { titleFilter, locationFilter });
+    for (const offer of apifyOffers) {
+      if (!seenUrls.has(offer.url)) {
+        seenUrls.add(offer.url);
+        newOffers.push(offer);
+      }
+    }
+  }
 
   // 5.5. Optional liveness verification — drop expired and guard-rejected postings
   let verifiedOffers = newOffers;

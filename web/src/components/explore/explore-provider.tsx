@@ -17,9 +17,9 @@ import {
   type ScanEvent,
 } from "@/lib/explore";
 import { makeAiStreamParser, type AiTraceChunk } from "@/lib/explore-ai";
-import type { ApifySource } from "./apify-source-picker";
+import type { ApifyComposerParams } from "./apify-composer";
 
-import { ApifyComposerParams } from "./apify-composer";
+export type ApifySource = { name: string; actor: string; enabled: boolean };
 
 export type Phase =
   | "idle"

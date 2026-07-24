@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Loader2, Key } from "lucide-react";
+import { Search, Loader2, Key, Play } from "lucide-react";
 import { instrumentSerif } from "@/lib/fonts";
 import { SearchSourcesCard } from "@/components/search-sources-card";
 import { AiSearchBox } from "@/components/explore/ai-search-box";
 import { useExplore } from "@/components/explore/explore-provider";
 import { ResultsList } from "@/components/explore/results-list";
 import { AiHuntView } from "@/components/explore/ai-hunt-view";
+import type { DiscoveredOffer } from "@/lib/explore";
 
 const CLI_NAMES: Record<string, string> = {
   claude: "Claude Code",
@@ -26,6 +27,10 @@ export default function ScoutPage() {
   const [typedSerperKey, setTypedSerperKey] = useState("");
   const [serperSaving, setSerperSaving] = useState(false);
   const [serperError, setSerperError] = useState<string | null>(null);
+
+  const [webRunning, setWebRunning] = useState(false);
+  const [webOffers, setWebOffers] = useState<DiscoveredOffer[]>([]);
+  const [webError, setWebError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -74,6 +79,51 @@ export default function ScoutPage() {
     }
   };
 
+  const runScheduledWebSearch = async () => {
+    setWebRunning(true);
+    setWebError(null);
+    setWebOffers([]);
+    const acc: DiscoveredOffer[] = [];
+    try {
+      const res = await fetch("/api/scout/web-search/run", { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "failed to start web search");
+      }
+      if (!res.body) throw new Error("no response stream");
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          try {
+            const ev = JSON.parse(line);
+            if (ev.kind === "offer" && ev.offer) {
+              acc.push(ev.offer);
+              setWebOffers([...acc]);
+            } else if (ev.kind === "error") {
+              setWebError(ev.message);
+            }
+          } catch {
+            /* skip */
+          }
+        }
+      }
+    } catch (e) {
+      setWebError(e instanceof Error ? e.message : "web search failed");
+    } finally {
+      setWebRunning(false);
+    }
+  };
+
   if (running) return <AiHuntView cliName={cli.name} />;
 
   return (
@@ -117,10 +167,28 @@ export default function ScoutPage() {
 
       {/* Section 2: Scheduled Web Searches (Serper API) */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-        <h2 className="text-lg font-medium text-foreground flex items-center gap-2">
-          <span>🌐 Scheduled Web Searches</span>
-          <span className="text-xs font-normal text-muted">(Headless / Serper Key)</span>
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium text-foreground flex items-center gap-2">
+            <span>🌐 Scheduled Web Searches</span>
+            <span className="text-xs font-normal text-muted">(Headless / Serper Key)</span>
+          </h2>
+          <button
+            type="button"
+            onClick={runScheduledWebSearch}
+            disabled={webRunning || !serperKeyConfigured}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-1.5 text-xs font-semibold text-brand-foreground hover:bg-brand/90 disabled:opacity-50 transition-colors"
+          >
+            {webRunning ? (
+              <>
+                <Loader2 className="size-3 animate-spin" /> Searching…
+              </>
+            ) : (
+              <>
+                <Play className="size-3 fill-current" /> Run Web Searches Now
+              </>
+            )}
+          </button>
+        </div>
 
         {/* Serper Key Field */}
         <div className="rounded-xl border border-border bg-surface/30 p-4 space-y-2">
@@ -161,6 +229,14 @@ export default function ScoutPage() {
           </div>
           {serperError && <p className="text-xs text-red-500">{serperError}</p>}
         </div>
+
+        {webError && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+            {webError}
+          </div>
+        )}
+
+        {webOffers.length > 0 && <ResultsList offers={webOffers.map((o) => ({ ...o, inPipeline: false }))} />}
 
         <SearchSourcesCard />
       </section>

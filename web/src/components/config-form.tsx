@@ -11,11 +11,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { TargetingCard } from "@/components/targeting-card";
 import { CompanyListCard } from "@/components/company-list-card";
-import { SearchSourcesCard } from "@/components/search-sources-card";
-import { AutomationSafetyCard } from "@/components/automation-safety-card";
-import { AutomationActivityLog } from "@/components/automation-activity-log";
+import { ApifyTokenCard } from "@/components/apify-token-card";
 import { BlacklistCard } from "@/components/blacklist-card";
 
 
@@ -311,11 +308,8 @@ export function ConfigForm() {
         <span className="text-xs text-faint">Local-first · on our roadmap</span>
       </div>
 
-      <TargetingCard />
       <CompanyListCard />
-      <SearchSourcesCard />
-      <AutomationSafetyCard />
-      <AutomationActivityLog />
+      <ApifyTokenCard />
       <BlacklistCard />
     </div>
   );

@@ -9,9 +9,7 @@ import type { Application, InboxJob } from "@/lib/career-ops";
 import { paramsToFilters, paramsToAi, type ExploreFilters } from "@/lib/explore";
 import { FilterBuilder } from "./filter-builder";
 import { DiscoveringState } from "./discovering-state";
-import { AiHuntView } from "./ai-hunt-view";
 import { ExploreModeToggle } from "./explore-mode-toggle";
-import { AiSearchBox } from "./ai-search-box";
 import { ResultsList, type EnrichedOffer } from "./results-list";
 import { ApifyComposer, type ApifyComposerParams } from "./apify-composer";
 import { useExplore, type ApifySourceProgress } from "./explore-provider";
@@ -99,9 +97,8 @@ export function ExplorerView({
     [offers, inboxUrls, appsSnapshot],
   );
 
-  const isAi = mode === "ai";
   const isApify = mode === "apify";
-  if (running) return isAi ? <AiHuntView cliName={cli.name} /> : isApify ? <ApifyRunningView progress={apifyProgress} /> : <DiscoveringState />;
+  if (running) return isApify ? <ApifyRunningView progress={apifyProgress} /> : <DiscoveringState />;
 
   const canDiscover = filters.ats.length > 0;
   const isResults = phase === "results";
@@ -121,11 +118,9 @@ export function ExplorerView({
         </div>
         {!isResults && (
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
-            {isAi
-              ? "Describe the role in plain language — an AI hunts the open web for it, on your own AI. Candidates are unverified until you evaluate."
-              : isApify
-                ? "Run LinkedIn, Glassdoor, Naukri, or Indeed on demand via Apify — costs Apify credits per run, so pick your sources and confirm."
-                : "Scan the public ATS network — Greenhouse, Lever, Ashby, Workday. Fresh postings matched to you, zero tokens. You only spend when you choose to evaluate one."}
+            {isApify
+              ? "Run LinkedIn, Glassdoor, Naukri, or Indeed on demand via Apify — costs Apify credits per run, so pick your sources and confirm."
+              : "Scan the public ATS network — Greenhouse, Lever, Ashby, Workday. Fresh postings matched to you, zero tokens. You only spend when you choose to evaluate one."}
           </p>
         )}
       </header>
@@ -145,32 +140,6 @@ export function ExplorerView({
           isResults={isResults}
           offers={enriched}
         />
-      ) : isAi ? (
-        phase === "blocked" ? (
-          <BlockedCard />
-        ) : (
-          <div className="space-y-6">
-            <AiSearchBox
-              intent={aiIntent}
-              onIntent={setAiIntent}
-              onSubmit={() => void discoverAI()}
-              cliConfigured={!!cli.id}
-              cliName={cli.name}
-              onRunScan={() => setMode("scan")}
-            />
-            {phase === "results" && <ResultsList offers={enriched} />}
-            {phase === "empty-loose" && (
-              <EmptyState
-                tone="loose"
-                title="No public matches — yet."
-                body="AI search reads what's public. Try broader intent, or run the free Scan over the ATS network."
-                onRerun={() => setMode("scan")}
-                rerunLabel="Run the free Scan"
-              />
-            )}
-            {phase === "failed" && <FailedCard msg={error || status} onRetry={() => void discoverAI()} />}
-          </div>
-        )
       ) : (
         <>
           {isResults ? (

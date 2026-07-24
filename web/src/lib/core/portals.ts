@@ -21,6 +21,8 @@ import { DEFAULT_FILTERS, cleanChips, type ExploreFilters } from "@/lib/explore"
  */
 type FilterLists = Pick<ExploreFilters, "positive" | "negative" | "allow" | "block" | "alwaysAllow">;
 
+import { atomicWriteWithBackup } from "@/lib/core/safe-write";
+
 export type PortalsDoc = { doc: Record<string, unknown>; exists: boolean; malformed: boolean };
 
 export type ApifySearchConfig = {
@@ -57,7 +59,7 @@ export function updateApifySearchConfig(root: string, update: Partial<ApifySearc
     ...doc,
     apify_search: updated,
   };
-  fs.writeFileSync(file, yaml.dump(newDoc), "utf8");
+  atomicWriteWithBackup(file, yaml.dump(newDoc, { lineWidth: 100, noRefs: true }));
 }
 
 /** Tolerant portals.yml reader shared by every read-only consumer (the Config
