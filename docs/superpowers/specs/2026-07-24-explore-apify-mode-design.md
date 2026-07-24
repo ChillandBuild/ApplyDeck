@@ -26,19 +26,15 @@ This is additive to [2026-07-24-search-sources-apify-design.md](2026-07-24-searc
 | Progress granularity | **Simple `queued → running → done` per source**, no live item counter — Apify's API doesn't cheaply expose partial dataset progress, and Scan mode's live counter isn't worth the extra polling calls to replicate here |
 | Backend approach | **Direct Apify call from the web route** (Approach B), not a `scan.mjs` subprocess (Approach A) — see rationale below |
 
-## Backend approach: why direct-call, not a `scan.mjs` subprocess
+## Backend approach: a dedicated spawned script, not `scan.mjs` and not a direct import
 
-Two approaches were considered:
+Three approaches were considered — the first two during initial design, the third added after discovering a build-breaking constraint:
 
 - **A — reuse `scan.mjs` as a subprocess**, the same engine the cron path runs. Would require adding a new `--json` streaming mode to `scan.mjs` (it currently only has human-readable stdout) and fixing a real gap found during design: `plugins/apify/index.mjs`'s `saveJd()` writes JD-cache files to `jds/` unconditionally, with no `--dry-run` awareness — reusing this path for a live "preview" click would silently leave files on disk on every click, which is the opposite of what a preview button should do.
-- **B — call the Apify transport directly from the new web route**, importing `runActor` from `plugins/apify/_apify.mjs` and the pure mapping helpers already exported from `plugins/apify/index.mjs` (`normalizeItem`, `isFieldSpec`, `isHttpsUrl`), skipping the file-writing wrapper (`saveJd`) entirely.
+- **B — call the Apify transport directly from the web route**, statically importing `runActor` from `plugins/apify/_apify.mjs`. **Ruled out during plan-writing**: `web/next.config.mjs` pins Turbopack's root to `web/` specifically because "Turbopack's root is pinned to web/ ... and refuses modules outside it" (the exact comment already documenting this in `web/src/lib/tracker-table.mjs`, which hit the identical problem importing the core tracker parser). A static import reaching outside `web/` into `plugins/apify/_apify.mjs` would fail the same way — this was a design mistake, not a real option.
+- **C — a new, small, dedicated root-level script** (outside `web/`, so Turbopack never sees it) that imports the REAL `plugins/apify/_apify.mjs` (`runActor`) and `plugins/apify/index.mjs` (`normalizeItem`, `isFieldSpec`, `isHttpsUrl`) exactly like `plugins/apify/index.mjs`'s own `fetch()` does — minus the `saveJd()` call — and streams newline-delimited JSON progress to stdout. The web route spawns it via `child_process.spawn`, the same pattern `runDiscovery` (`web/src/lib/core/scan.ts`) already uses to spawn `scan-ats-full.mjs`.
 
-**Chosen: B.** Reasons:
-1. Avoids inheriting the dry-run/JD-caching bug rather than working around it.
-2. Smaller blast radius — doesn't modify `scan.mjs`, the shared script the cron path and the earlier spec both depend on.
-3. Matches the existing behavior of Scan/AI search: nothing is written to disk until the client explicitly clicks "Add to pipeline" (`/api/explore/add`, which only needs `{title, url, company, location}` — confirmed by reading its implementation; no JD body text is required at add-time for any existing mode). JD caching stays a cron-only optimization for unattended entries where nobody manually re-verifies each URL before evaluation; Explore's interactive modes have never needed it.
-
-Both approaches read the same `portals.yml` entries (same actor, input, `field_map`), so the two trigger paths (click vs. cron) behave identically in terms of *what* gets scraped — they just don't share literal code for *how*.
+**Chosen: C.** It keeps every reason B was chosen over A (no inherited dry-run/`jds/` bug, no modification to the shared `scan.mjs` cron script, nothing written to disk until "Add to pipeline"), while actually working within this repo's real build constraints. All three approaches read the same `portals.yml` entries (same actor, input, `field_map`), so every trigger path (cron vs. Explore click) behaves identically in terms of *what* gets scraped.
 
 ## UI
 
@@ -86,11 +82,15 @@ POST /api/explore/apify { sources: string[] }
 
 ## New/changed code
 
-- **`web/src/lib/core/portals.ts`**: new `readPortalsDoc()` — extracts the `yaml.load` + `isObj` parsing currently duplicated between the snapshot route and the PUT route (this new route would otherwise be a third copy). Both existing routes are refactored to use it; behavior-preserving, existing tests must keep passing unchanged.
-- **`web/src/lib/explore.ts`**: new `ApifyScanEvent` union type (`sourceStart` / `sourceDone` / `sourceError` / `offer` / `done`) — kept separate from `ScanEvent` rather than extended, since Apify has no `companies`/`scanned`/`total` figures to report and forcing them in would mean fake numbers. `ExploreMode` gains `"apify"`.
+- **`explore-apify.mjs`** (new, repo root): the spawned script from Approach C — wraps `runActor` (`plugins/apify/_apify.mjs`) and `normalizeItem`/`isHttpsUrl` (`plugins/apify/index.mjs`), never calls `saveJd()`. Exports `processEntry`/`mapItem`/`runAll` with an injectable `runActorFn` for testing (`tests/explore-apify.test.mjs`) alongside a CLI entrypoint (`--entries <file>`) that loads `.env` itself via `dotenv.config({ quiet: true })`, same as `scan.mjs`.
+- **`web/src/lib/core/portals.ts`**: new `readPortalsDoc()` — extracts the `yaml.load` + `isObj` parsing that was inline in the snapshot route's GET (the only other read-only consumer with the same shape; the PUT route's stricter refuse-on-malformed semantics stay as its own inline check, not merged into this helper).
+- **`web/src/lib/core/apify-discover.ts`** (new): `isApifyPluginEnabled(root)` and `isApifyTokenConfigured(root)` — the route's two pre-flight gates, unit-tested directly. `isApifyTokenConfigured` also replaces the equivalent inline regex in `web/src/app/api/secrets/apify-token/route.ts`'s `GET` (DRY).
+- **`web/src/lib/explore.ts`**: new `ApifyScanEvent` union type (`sourceStart` / `sourceDone` / `sourceError` / `offer` / `error` / `done`) — kept separate from `ScanEvent` rather than extended, since Apify has no `companies`/`scanned`/`total` figures to report and forcing them in would mean fake numbers. `ExploreMode` gains `"apify"`.
 - **`web/src/app/api/explore/apify/route.ts`** (new): the streaming route described above. Node runtime, `maxDuration = 300` (matches `/api/explore`'s budget; individual actors default to a 180s timeout via `plugins/apify/_apify.mjs`'s `DEFAULT_RUN_TIMEOUT_MS`, so parallel sources fit comfortably within the route budget).
-- **`web/src/components/explore/explore-provider.tsx`**: new `discoverApify(sources: string[])` action alongside `discover()`/`discoverAI()`, plus per-source progress state for the picker's pills.
-- **`web/src/components/explore/apify-source-picker.tsx`** (new): the dynamic Sources row for Apify mode.
+- **`web/src/components/explore/explore-provider.tsx`**: new `discoverApify()` action alongside `discover()`/`discoverAI()`, plus `apifySelected`/`apifyAvailable`/`apifyProgress` state and a `apifyConfirming` confirm-gate.
+- **`web/src/components/explore/apify-source-picker.tsx`** (new): the dynamic Sources row for Apify mode, exporting the `ApifySource` type.
+- **`web/src/components/explore/explore-mode-toggle.tsx`**: third "Apify" pill between Scan and AI search.
+- **`web/src/components/explore/explorer-view.tsx`**: new Apify rendering branch (empty/confirm/running/results), reusing `ResultsList`/`FailedCard`/`EnrichedOffer` unchanged.
 
 ## Error handling
 
@@ -101,10 +101,10 @@ POST /api/explore/apify { sources: string[] }
 
 ## Testing
 
-- Unit tests for the new `readPortalsDoc()` extraction — existing snapshot-route tests must pass unchanged against the refactored implementation.
-- Route tests for `/api/explore/apify`: plugin-disabled → 400, no-token → 400, successful multi-source run with `runActor` mocked, one-source-fails-others-succeed, empty `sources` array → no-op.
+- Unit tests for `readPortalsDoc()`, `isApifyPluginEnabled()`, `isApifyTokenConfigured()` — small, pure, file-system-only functions, each independently testable via a temp directory.
+- `tests/explore-apify.test.mjs` (root-level, auto-discovered by `test-all.mjs`) tests `explore-apify.mjs`'s `processEntry`/`mapItem`/`runAll` directly via an injected `runActorFn` — no real Apify calls, no network mocking needed, since the DI seam is a plain function parameter.
+- `/api/explore/apify` route tests cover the four pre-flight gates (no sources, plugin disabled, no token, no matching entries) plus one "gates pass, stream starts" smoke test — matching this repo's existing precedent of NOT unit-testing the spawn/network internals of streaming discovery routes (`/api/explore`, `/api/explore/ai` have no `route.test.ts` either); the actual Apify-calling logic is covered by `tests/explore-apify.test.mjs` instead.
 - The picker must show entries regardless of their `enabled: true/false` flag (Scenario B from the brainstorm — a source disabled for cron still appears here).
-- No live Apify calls in CI — `runActor` is mocked at the module boundary.
 
 ## Non-goals
 
