@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { careerOpsRoot } from "@/lib/career-ops";
 import { atomicWriteWithBackup } from "@/lib/core/safe-write";
+import { isApifyTokenConfigured } from "@/lib/core/apify-discover";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,8 +29,7 @@ function isConfigured(lines: string[]): boolean {
 }
 
 export async function GET() {
-  const lines = readLines(careerOpsRoot());
-  return Response.json({ configured: isConfigured(lines) });
+  return Response.json({ configured: isApifyTokenConfigured(careerOpsRoot()) });
 }
 
 export async function PUT(req: Request) {
