@@ -63,3 +63,35 @@ test("GET returns empty snapshot (with empty searchSources) when portals.yml is 
   assert.deepEqual(data.searchSources, []);
   assert.deepEqual(data.companies, []);
 });
+
+test("GET surfaces provider:apify tracked_companies entries as apifySources, regardless of enabled", async () => {
+  const root = makeTempRoot(`
+tracked_companies:
+  - name: "Indeed India — DS/ML Intern (via Apify)"
+    provider: apify
+    actor: misceres/indeed-scraper
+    input: { position: "Data Science Intern" }
+    enabled: true
+  - name: "LinkedIn — India (via Apify)"
+    provider: apify
+    actor: bebity/linkedin-jobs-scraper
+    enabled: false
+  - name: "Palantir"
+    careers_url: "https://jobs.lever.co/palantir"
+`);
+  const res = await callGet(root);
+  const data = await res.json();
+  assert.equal(data.apifySources.length, 2);
+  const indeed = data.apifySources.find((s: any) => s.name === "Indeed India — DS/ML Intern (via Apify)");
+  assert.equal(indeed.actor, "misceres/indeed-scraper");
+  assert.equal(indeed.enabled, true);
+  const linkedin = data.apifySources.find((s: any) => s.name === "LinkedIn — India (via Apify)");
+  assert.equal(linkedin.enabled, false); // still present — enabled only gates cron, not the picker
+});
+
+test("GET returns an empty apifySources list when no provider:apify entries exist", async () => {
+  const root = makeTempRoot(`tracked_companies:\n  - name: Anthropic\n    careers_url: https://job-boards.greenhouse.io/anthropic\n`);
+  const res = await callGet(root);
+  const data = await res.json();
+  assert.deepEqual(data.apifySources, []);
+});

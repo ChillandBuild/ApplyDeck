@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
-import yaml from "js-yaml";
 import { careerOpsRoot } from "@/lib/career-ops";
+import { readPortalsDoc } from "@/lib/core/portals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,20 +28,13 @@ function strList(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
 }
 
-const EMPTY_SNAPSHOT = { positive: [], negative: [], alwaysAllow: [], block: [], apify: null, companies: [], searchSources: [] };
+const EMPTY_SNAPSHOT = { positive: [], negative: [], alwaysAllow: [], block: [], apify: null, companies: [], searchSources: [], apifySources: [] };
 
 export async function GET() {
-  const file = path.join(careerOpsRoot(), "portals.yml");
-  if (!fs.existsSync(file)) {
-    return Response.json(EMPTY_SNAPSHOT);
-  }
-  let doc: Record<string, unknown>;
-  try {
-    const parsed = yaml.load(fs.readFileSync(file, "utf8"));
-    doc = isObj(parsed) ? parsed : {};
-  } catch {
-    return Response.json({ ...EMPTY_SNAPSHOT, malformed: true });
-  }
+  const { doc, exists, malformed } = readPortalsDoc(careerOpsRoot());
+  if (!exists) return Response.json(EMPTY_SNAPSHOT);
+  if (malformed) return Response.json({ ...EMPTY_SNAPSHOT, malformed: true });
+
   const tf = isObj(doc.title_filter) ? doc.title_filter : {};
   const lf = isObj(doc.location_filter) ? doc.location_filter : {};
   const companies = Array.isArray(doc.tracked_companies) ? doc.tracked_companies : [];
@@ -79,6 +70,18 @@ export async function GET() {
         name: q.name as string,
         query: typeof q.query === "string" ? q.query : "",
         enabled: q.enabled !== false,
+      })),
+    // Every provider:apify entry, for the Explore page's on-demand Apify mode
+    // picker — deliberately NOT filtered by `enabled` (that flag only gates
+    // scan.mjs's unattended cron path; a client can run a source here even if
+    // it's off for cron, and vice versa — see docs/superpowers/specs/
+    // 2026-07-24-explore-apify-mode-design.md).
+    apifySources: companies
+      .filter((c): c is Record<string, unknown> => isObj(c) && c.provider === "apify" && typeof c.name === "string")
+      .map((c) => ({
+        name: c.name as string,
+        actor: typeof c.actor === "string" ? c.actor : "",
+        enabled: c.enabled !== false,
       })),
   });
 }
