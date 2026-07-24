@@ -46,7 +46,7 @@ export function ExploreModeToggle({
         <Zap className="size-4" />
         <span className="font-medium">Apify</span>
         <span className="hidden sm:inline-flex">
-          <CostBadge kind="spend" size="xs" />
+          <CostBadge kind="spend-apify" size="xs" />
         </span>
       </button>
       <button

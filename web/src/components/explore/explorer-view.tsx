@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Compass, ChevronDown, RotateCcw, AlertTriangle, Sparkles, Settings } from "lucide-react";
+import { Compass, ChevronDown, RotateCcw, AlertTriangle, Sparkles, Settings, Zap } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { instrumentSerif } from "@/lib/fonts";
@@ -13,7 +13,8 @@ import { AiHuntView } from "./ai-hunt-view";
 import { ExploreModeToggle } from "./explore-mode-toggle";
 import { AiSearchBox } from "./ai-search-box";
 import { ResultsList, type EnrichedOffer } from "./results-list";
-import { useExplore } from "./explore-provider";
+import { ApifySourcePicker, type ApifySource } from "./apify-source-picker";
+import { useExplore, type ApifySourceProgress } from "./explore-provider";
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const CLI_NAMES: Record<string, string> = {
@@ -37,7 +38,11 @@ export function ExplorerView({
   appsSnapshot: Application[];
   rootExists: boolean;
 }) {
-  const { filters, setFilters, initFilters, phase, running, offers, discover, status, error, mode, setMode, aiIntent, setAiIntent, discoverAI, companiesScanned, companiesAvailable, capHit, droppedNoDate, partial } = useExplore();
+  const {
+    filters, setFilters, initFilters, phase, running, offers, discover, status, error, mode, setMode, aiIntent, setAiIntent, discoverAI,
+    companiesScanned, companiesAvailable, capHit, droppedNoDate, partial,
+    apifySelected, setApifySelected, apifyAvailable, setApifyAvailable, apifyProgress, apifyConfirming, requestApifyConfirm, cancelApifyConfirm, discoverApify,
+  } = useExplore();
   const scanNote =
     companiesScanned > 0
       ? `Scanned ${companiesScanned.toLocaleString()}${companiesAvailable > companiesScanned ? ` of ${companiesAvailable.toLocaleString()}` : ""} compan${companiesScanned === 1 ? "y" : "ies"}${partial ? " · some sources were unreachable" : ""}.`
@@ -95,7 +100,8 @@ export function ExplorerView({
   );
 
   const isAi = mode === "ai";
-  if (running) return isAi ? <AiHuntView cliName={cli.name} /> : <DiscoveringState />;
+  const isApify = mode === "apify";
+  if (running) return isAi ? <AiHuntView cliName={cli.name} /> : isApify ? <ApifyRunningView progress={apifyProgress} /> : <DiscoveringState />;
 
   const canDiscover = filters.ats.length > 0;
   const isResults = phase === "results";
@@ -117,7 +123,9 @@ export function ExplorerView({
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
             {isAi
               ? "Describe the role in plain language — an AI hunts the open web for it, on your own AI. Candidates are unverified until you evaluate."
-              : "Scan the public ATS network — Greenhouse, Lever, Ashby, Workday. Fresh postings matched to you, zero tokens. You only spend when you choose to evaluate one."}
+              : isApify
+                ? "Run LinkedIn, Glassdoor, Naukri, or Indeed on demand via Apify — costs Apify credits per run, so pick your sources and confirm."
+                : "Scan the public ATS network — Greenhouse, Lever, Ashby, Workday. Fresh postings matched to you, zero tokens. You only spend when you choose to evaluate one."}
           </p>
         )}
       </header>
@@ -128,7 +136,23 @@ export function ExplorerView({
         </div>
       )}
 
-      {isAi ? (
+      {isApify ? (
+        <ApifyModeBody
+          selected={apifySelected}
+          setSelected={setApifySelected}
+          available={apifyAvailable}
+          setAvailable={setApifyAvailable}
+          confirming={apifyConfirming}
+          requestConfirm={requestApifyConfirm}
+          cancelConfirm={cancelApifyConfirm}
+          onDiscover={discoverApify}
+          phase={phase}
+          progress={apifyProgress}
+          error={error}
+          isResults={isResults}
+          offers={enriched}
+        />
+      ) : isAi ? (
         phase === "blocked" ? (
           <BlockedCard />
         ) : (
@@ -251,6 +275,136 @@ function DiscoverBar({ canDiscover, onDiscover, label }: { canDiscover: boolean;
         Evaluating a role later costs tokens. Discovering never does.
       </span>
     </div>
+  );
+}
+
+function ApifyRunningView({ progress }: { progress: Record<string, ApifySourceProgress> }) {
+  const entries = Object.entries(progress);
+  return (
+    <div className="mx-auto max-w-2xl px-5 py-16 text-center">
+      <Zap className="mx-auto size-8 animate-pulse text-brand" />
+      <h2 className={`${instrumentSerif.className} mt-4 text-2xl text-foreground`}>Running on Apify…</h2>
+      <ul className="mt-6 space-y-2 text-left">
+        {entries.map(([name, p]) => (
+          <li key={name} className="flex items-center justify-between rounded-lg border border-border bg-surface/30 px-3.5 py-2 text-sm">
+            <span className="truncate text-foreground">{name}</span>
+            <span
+              className={cn(
+                "text-xs font-medium",
+                p.state === "running" && "text-brand",
+                p.state === "done" && "text-emerald-500",
+                p.state === "error" && "text-red-500",
+                p.state === "queued" && "text-faint",
+              )}
+            >
+              {p.state === "queued" && "queued"}
+              {p.state === "running" && "running…"}
+              {p.state === "done" && `done · ${p.count ?? 0} found`}
+              {p.state === "error" && "error"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ApifyModeBody({
+  selected,
+  setSelected,
+  available,
+  setAvailable,
+  confirming,
+  requestConfirm,
+  cancelConfirm,
+  onDiscover,
+  phase,
+  progress,
+  error,
+  isResults,
+  offers,
+}: {
+  selected: string[];
+  setSelected: (n: string[]) => void;
+  available: ApifySource[];
+  setAvailable: (s: ApifySource[]) => void;
+  confirming: boolean;
+  requestConfirm: () => void;
+  cancelConfirm: () => void;
+  onDiscover: () => void;
+  phase: string;
+  progress: Record<string, ApifySourceProgress>;
+  error: string;
+  isResults: boolean;
+  offers: EnrichedOffer[];
+}) {
+  const loaded = useRef(false);
+  return (
+    <>
+      <div className="mb-6 rounded-2xl border border-border bg-surface/30 p-5">
+        <p className="mb-2 text-[13px] font-medium text-foreground">Sources</p>
+        <ApifySourcePicker
+          selected={selected}
+          onChange={setSelected}
+          onLoaded={(s) => {
+            if (!loaded.current) {
+              loaded.current = true;
+              setAvailable(s);
+            }
+          }}
+        />
+        {available.length === 0 ? (
+          <div className="mt-3 rounded-lg border border-border bg-surface/40 px-3.5 py-3 text-sm text-muted">
+            No Apify sources configured yet —{" "}
+            <Link href="/config" className="font-medium text-brand hover:underline">
+              add one in Config
+            </Link>
+            .
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={selected.length === 0}
+              onClick={requestConfirm}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground shadow-sm transition-all hover:brightness-110 disabled:opacity-50 max-sm:min-h-[44px]"
+            >
+              <Zap className="size-4" /> Discover
+            </button>
+            <span className="inline-flex items-center gap-1.5 text-[12px] text-muted">
+              <span className="size-1.5 rounded-full bg-amber-500" />
+              Uses your Apify credits — {selected.length} source{selected.length === 1 ? "" : "s"} selected.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {confirming && (
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <p className="text-sm font-medium text-foreground">
+            Run {selected.length} source{selected.length === 1 ? "" : "s"} on Apify — uses your Apify credits?
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button onClick={onDiscover} className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-brand-foreground transition hover:brightness-110">
+              Confirm
+            </button>
+            <button onClick={cancelConfirm} className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground transition hover:border-brand/40">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isResults && <ResultsList offers={offers} />}
+      {phase === "failed" && <FailedCard msg={error} onRetry={onDiscover} />}
+      {phase === "empty-loose" && (
+        <div className="rounded-2xl border border-border bg-surface/30 px-6 py-12 text-center">
+          <Zap className="mx-auto size-6 text-brand" />
+          <h2 className={`${instrumentSerif.className} mt-4 text-2xl text-foreground`}>No matches from those sources.</h2>
+          <p className="mx-auto mt-1.5 max-w-md text-sm text-muted">Try different sources, or check back later — these actors reflect what's live on each platform right now.</p>
+        </div>
+      )}
+    </>
   );
 }
 
