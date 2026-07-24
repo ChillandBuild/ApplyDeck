@@ -475,9 +475,9 @@ const ENTRY = {
     fail(`runAll() mixed-result: sourceDone=${sourceDone.length} sourceError=${sourceError.length} offers=${offers.length}`);
   }
 }
-
-process.exit(process.exitCode || 0);
 ```
+
+(No trailing `process.exit()` — discovered `tests/*.test.mjs` files must let `test-all.mjs`'s runner own the exit code; a self-exiting file fails discovery with "discovered suites must use pass/fail from tests/helpers.mjs and never exit". This differs from the loose root-level `*.test.mjs` convention seen in files like `followup-cadence.test.mjs`, which self-exit because they're NOT auto-discovered.)
 
 - [ ] **Step 2: Run test to verify it fails**
 

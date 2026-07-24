@@ -92,5 +92,3 @@ const ENTRY = {
     fail(`runAll() mixed-result: sourceDone=${sourceDone.length} sourceError=${sourceError.length} offers=${offers.length}`);
   }
 }
-
-process.exit(process.exitCode || 0);
