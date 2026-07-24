@@ -65,8 +65,10 @@ export type DiscoveredOffer = {
   confidence?: "low" | "medium" | "high";
 };
 
-/** The two discovery surfaces: free deterministic Scan vs token-spending AI search. */
-export type ExploreMode = "scan" | "ai";
+/** The three discovery surfaces: free deterministic Scan, credit-spending
+ *  Apify (on-demand LinkedIn/Glassdoor/Naukri/... actors), and token-spending
+ *  AI search. */
+export type ExploreMode = "scan" | "ai" | "apify";
 
 /** Stream event grammar (NDJSON). `kind` discriminates. Discovery is FREE — the
  *  terminal `done` always carries cost {tokens:0, usd:0}. */
@@ -91,6 +93,18 @@ export type ScanEvent =
   | { kind: "log"; line: string }
   | { kind: "error"; message: string }
   | { kind: "done"; count: number; offers: DiscoveredOffer[]; cost?: { tokens: number; usd: number } };
+
+/** Stream event grammar for Apify-mode discovery (NDJSON, same transport as
+ *  ScanEvent but a DIFFERENT shape — Apify's API gives no companies/scanned/
+ *  total figures, so this is a separate union rather than shoehorning fake
+ *  numbers into ScanEvent's ats-shaped fields). */
+export type ApifyScanEvent =
+  | { kind: "sourceStart"; source: string }
+  | { kind: "sourceDone"; source: string; count: number }
+  | { kind: "sourceError"; source: string; message: string }
+  | { kind: "offer"; offer: DiscoveredOffer }
+  | { kind: "error"; message: string }
+  | { kind: "done"; count: number; offers: DiscoveredOffer[] };
 
 // cleanChips is defined in clean-chips.mjs (plain JS) so it can be shared
 // with the test suite without a TypeScript runner. Import for internal use
