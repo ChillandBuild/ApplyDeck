@@ -21,6 +21,27 @@ import { DEFAULT_FILTERS, cleanChips, type ExploreFilters } from "@/lib/explore"
  */
 type FilterLists = Pick<ExploreFilters, "positive" | "negative" | "allow" | "block" | "alwaysAllow">;
 
+export type PortalsDoc = { doc: Record<string, unknown>; exists: boolean; malformed: boolean };
+
+/** Tolerant portals.yml reader shared by every read-only consumer (the Config
+ *  snapshot, the Explore Apify picker, …). Never throws. `malformed` is true
+ *  ONLY when the file exists but fails to parse — a file that parses to a
+ *  non-object (e.g. a bare YAML list) is treated as an empty doc, matching
+ *  the behavior this replaces in the snapshot route. Callers that need to
+ *  REFUSE to write over a malformed file (web/src/app/api/portals/route.ts's
+ *  PUT) keep their own stricter inline check — this helper is for reads. */
+export function readPortalsDoc(root: string): PortalsDoc {
+  const file = path.join(root, "portals.yml");
+  if (!fs.existsSync(file)) return { doc: {}, exists: false, malformed: false };
+  try {
+    const parsed = yaml.load(fs.readFileSync(file, "utf8"));
+    const doc = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+    return { doc, exists: true, malformed: false };
+  } catch {
+    return { doc: {}, exists: true, malformed: true };
+  }
+}
+
 function listFrom(v: unknown): string[] {
   return cleanChips(v);
 }
