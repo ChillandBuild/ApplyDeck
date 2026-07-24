@@ -165,6 +165,7 @@ const SYSTEM_PATHS = [
   'explore-apify.mjs',
   'apify-platforms.mjs',
   'web-search-run.mjs',
+  'run-scheduled-automation.mjs',
   'match-star.mjs',
   'jd-skill-gap.mjs',
   'prepare-application.mjs',

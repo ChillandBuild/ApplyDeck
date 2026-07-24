@@ -1604,6 +1604,7 @@ export async function runApifySearchScan(doc, token, opts = {}) {
   for (const offer of offers) {
     if (opts.titleFilter && !opts.titleFilter(offer.title)) continue;
     if (opts.locationFilter && !opts.locationFilter(offer.location)) continue;
+    if (opts.blacklist && opts.blacklist.has(normalizeCompany(offer.company || ''))) continue;
     filtered.push(offer);
   }
   return filtered;
@@ -1926,7 +1927,7 @@ async function main() {
   // preview must NOT fire them (dry-run is "look, don't spend").
   const apifyToken = process.env.APIFY_TOKEN || '';
   if (!dryRun && apifyToken && config.apify_search && config.apify_search.enabled !== false) {
-    const apifyOffers = await runApifySearchScan(config, apifyToken, { titleFilter, locationFilter });
+    const apifyOffers = await runApifySearchScan(config, apifyToken, { titleFilter, locationFilter, blacklist });
     for (const offer of apifyOffers) {
       if (!seenUrls.has(offer.url)) {
         seenUrls.add(offer.url);

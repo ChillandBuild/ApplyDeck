@@ -165,11 +165,11 @@ export default function ScoutPage() {
         )}
       </section>
 
-      {/* Section 2: Scheduled Web Searches (Serper API) */}
+      {/* Section 2: Scheduled & On-Demand Web Searches (Serper API) */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium text-foreground flex items-center gap-2">
-            <span>🌐 Scheduled Web Searches</span>
+            <span>🌐 Scheduled & On-Demand Web Searches</span>
             <span className="text-xs font-normal text-muted">(Headless / Serper Key)</span>
           </h2>
           <button

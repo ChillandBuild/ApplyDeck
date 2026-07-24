@@ -16,6 +16,8 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import yaml from 'js-yaml';
 import { runSerperQuery } from './plugins/serper/index.mjs';
+import { appendToPipeline, appendToScanHistory, loadSeenUrls, loadBlacklist } from './scan.mjs';
+import { normalizeCompany } from './tracker-utils.mjs';
 
 /** Filter raw Serper result item to a DiscoveredOffer, or null if invalid. */
 export function mapSerperItem(item, queryName) {
@@ -95,6 +97,38 @@ export async function runAllQueries(queries, apiKey, emit, deps = {}) {
   return collected;
 }
 
+/** Filter, dedupe against scan-history, check blacklist, and append survivors to pipeline */
+export function writeWebSearchResults(offers, options = {}) {
+  const loadSeen = options.loadSeenUrlsFn || loadSeenUrls;
+  const loadBlack = options.loadBlacklistFn || loadBlacklist;
+  const appendPipe = options.appendToPipelineFn || appendToPipeline;
+  const appendHist = options.appendToScanHistoryFn || appendToScanHistory;
+
+  const seenUrls = loadSeen();
+  const blacklist = loadBlack();
+  const date = options.date || new Date().toISOString().slice(0, 10);
+
+  const survivors = [];
+  for (const offer of offers) {
+    if (!offer || !offer.url) continue;
+    if (seenUrls.has(offer.url)) continue;
+    if (blacklist.has(normalizeCompany(offer.company || ''))) continue;
+    // note: rides through formatPipelineOffer()'s existing `| note: ...` segment,
+    // so the pipeline.md row itself flags this as a stale-prone Level-3 hit
+    // (per AGENTS.md — web search results are never live-verified like ATS/Apify).
+    const item = { ...offer, status: 'unverified', note: 'unverified — web search, not live-verified' };
+    seenUrls.add(offer.url);
+    survivors.push(item);
+  }
+
+  if (survivors.length > 0 && !options.dryRun) {
+    appendPipe(survivors);
+    appendHist(survivors, date, 'unverified');
+  }
+
+  return survivors;
+}
+
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isMain) {
@@ -114,6 +148,8 @@ if (isMain) {
   }
 
   const args = process.argv.slice(2);
+  const shouldWrite = args.includes('--write');
+  const dryRun = args.includes('--dry-run');
   const queriesFlagIdx = args.indexOf('--queries');
   const queriesPath = queriesFlagIdx >= 0 ? args[queriesFlagIdx + 1] : null;
 
@@ -135,5 +171,10 @@ if (isMain) {
   }
 
   const offers = await runAllQueries(queries, apiKey, emit, { titleFilter });
-  emit({ kind: 'done', count: offers.length, offers });
+  let writtenCount = 0;
+  if (shouldWrite) {
+    const survivors = writeWebSearchResults(offers, { dryRun });
+    writtenCount = survivors.length;
+  }
+  emit({ kind: 'done', count: offers.length, written: writtenCount, offers });
 }

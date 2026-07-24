@@ -35,10 +35,10 @@ export const PLATFORMS = {
       limit: max || 20,
     }),
     field_map: {
-      title: 'title',
-      url: 'url',
-      company: 'company',
-      location: 'location',
+      title: ['title', 'positionName', 'jobTitle'],
+      url: ['url', 'link', 'jobUrl'],
+      company: ['company', 'companyName', 'companyOrOrganization'],
+      location: ['location', 'formattedLocation', 'place'],
     },
   },
   glassdoor: {
@@ -52,10 +52,10 @@ export const PLATFORMS = {
       limit: max || 20,
     }),
     field_map: {
-      title: 'title',
-      url: 'url',
-      company: 'companyName',
-      location: 'location',
+      title: ['title', 'jobTitle', 'header'],
+      url: ['url', 'jobUrl', 'link'],
+      company: ['companyName', 'company', 'employerName'],
+      location: ['location', 'formattedLocation', 'city'],
     },
   },
   naukri: {
@@ -69,10 +69,10 @@ export const PLATFORMS = {
       maxItems: max || 20,
     }),
     field_map: {
-      title: 'title',
-      url: 'url',
-      company: 'company',
-      location: 'location',
+      title: ['title', 'jobTitle', 'designation'],
+      url: ['url', 'jdUrl', 'link'],
+      company: ['company', 'companyName', 'companyLabel'],
+      location: ['location', 'place', 'city'],
     },
   },
 };
