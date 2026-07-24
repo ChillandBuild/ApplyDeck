@@ -9,7 +9,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "node --test test-clean-chips.mjs",
-    "test:api": "node --import tsx --test src/lib/core/portals.test.ts src/lib/core/apify-discover.test.ts src/app/api/portals/route.test.ts src/app/api/portals/snapshot/route.test.ts src/app/api/automation/route.test.ts src/app/api/blacklist/route.test.ts src/app/api/secrets/apify-token/route.test.ts src/app/api/automation/log/route.test.ts"
+    "test:api": "node --import tsx --test src/lib/core/portals.test.ts src/lib/core/apify-discover.test.ts src/app/api/portals/route.test.ts src/app/api/portals/snapshot/route.test.ts src/app/api/automation/route.test.ts src/app/api/blacklist/route.test.ts src/app/api/secrets/apify-token/route.test.ts src/app/api/automation/log/route.test.ts src/app/api/explore/apify/route.test.ts"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.77",
