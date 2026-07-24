@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, Sparkles } from "lucide-react";
+import { Compass, Sparkles, Zap } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CostBadge } from "@/components/cost/cost-badge";
 import type { ExploreMode } from "@/lib/explore";
@@ -32,6 +32,21 @@ export function ExploreModeToggle({
         <span className="font-medium">Scan</span>
         <span className="hidden sm:inline-flex">
           <CostBadge kind="free-network" size="xs" />
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("apify")}
+        aria-pressed={mode === "apify"}
+        className={cn(
+          "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm transition-colors sm:flex-none sm:gap-2 sm:px-3 max-sm:min-h-[44px]",
+          mode === "apify" ? "bg-brand-soft text-brand" : "text-muted hover:text-foreground",
+        )}
+      >
+        <Zap className="size-4" />
+        <span className="font-medium">Apify</span>
+        <span className="hidden sm:inline-flex">
+          <CostBadge kind="spend" size="xs" />
         </span>
       </button>
       <button
