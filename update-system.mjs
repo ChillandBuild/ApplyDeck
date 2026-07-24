@@ -162,6 +162,7 @@ const SYSTEM_PATHS = [
   'scan.mjs',
   'classify-tier.mjs',
   'scan-ats-full.mjs',
+  'explore-apify.mjs',
   'match-star.mjs',
   'jd-skill-gap.mjs',
   'prepare-application.mjs',
