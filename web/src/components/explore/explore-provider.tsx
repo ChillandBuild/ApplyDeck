@@ -9,6 +9,7 @@ import {
   aiToParams,
   isBroadSearch,
   parseExplorePatch,
+  type ApifyScanEvent,
   type AtsSource,
   type DiscoveredOffer,
   type ExploreFilters,
@@ -16,6 +17,7 @@ import {
   type ScanEvent,
 } from "@/lib/explore";
 import { makeAiStreamParser, type AiTraceChunk } from "@/lib/explore-ai";
+import type { ApifySource } from "./apify-source-picker";
 
 export type Phase =
   | "idle"
@@ -30,6 +32,7 @@ export type Phase =
   | "hunting" // AI search streaming
   | "blocked"; // AI search needs a CLI
 export type AiCost = { searches: number; candidates: number; fetches: number };
+export type ApifySourceProgress = { state: "queued" | "running" | "done" | "error"; count?: number; message?: string };
 export type SourceState = {
   state: "queued" | "active" | "swept" | "noisy";
   companies?: number;
@@ -71,6 +74,16 @@ type ExploreCtx = {
   discoverAI: () => Promise<void>;
   aiTrace: AiTraceChunk[];
   aiCost: AiCost;
+  // ── Apify mode ──
+  apifySelected: string[];
+  setApifySelected: (names: string[]) => void;
+  apifyAvailable: ApifySource[];
+  setApifyAvailable: (s: ApifySource[]) => void;
+  apifyProgress: Record<string, ApifySourceProgress>;
+  apifyConfirming: boolean;
+  requestApifyConfirm: () => void;
+  cancelApifyConfirm: () => void;
+  discoverApify: () => Promise<void>;
 };
 
 const Ctx = createContext<ExploreCtx | null>(null);
@@ -127,6 +140,10 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
   const [aiIntent, setAiIntent] = useState("");
   const [aiTrace, setAiTrace] = useState<AiTraceChunk[]>([]);
   const [aiCost, setAiCost] = useState<AiCost>({ searches: 0, candidates: 0, fetches: 0 });
+  const [apifySelected, setApifySelected] = useState<string[]>([]);
+  const [apifyAvailable, setApifyAvailable] = useState<ApifySource[]>([]);
+  const [apifyProgress, setApifyProgress] = useState<Record<string, ApifySourceProgress>>({});
+  const [apifyConfirming, setApifyConfirming] = useState(false);
   const runningRef = useRef(false);
   const aiIntentRef = useRef(aiIntent);
   aiIntentRef.current = aiIntent;
@@ -438,6 +455,102 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const requestApifyConfirm = useCallback(() => setApifyConfirming(true), []);
+  const cancelApifyConfirm = useCallback(() => setApifyConfirming(false), []);
+
+  // Apify mode — run the selected provider:apify sources live, on demand.
+  // Every click costs real Apify credits, so this is only ever invoked after
+  // requestApifyConfirm()'s dialog is explicitly accepted (see
+  // ExplorerView's Apify branch) — never on a bare button click.
+  const discoverApify = useCallback(async () => {
+    if (runningRef.current) return;
+    const sources = apifySelected;
+    if (sources.length === 0) return;
+    setApifyConfirming(false);
+    runningRef.current = true;
+    setPhase("casting");
+    setOffers([]);
+    setMatchCount(0);
+    setError("");
+    setStatus("Running selected sources on Apify…");
+    const initProgress: Record<string, ApifySourceProgress> = {};
+    for (const s of sources) initProgress[s] = { state: "queued" };
+    setApifyProgress(initProgress);
+
+    const acc: DiscoveredOffer[] = [];
+    let sawError = "";
+    try {
+      const r = await fetch("/api/explore/apify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sources }),
+      });
+      if (r.status === 400) {
+        const d = await r.json().catch(() => ({}));
+        sawError = d.error || "Apify discovery isn't available.";
+      } else if (!r.body) {
+        sawError = "No response stream.";
+      } else {
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line) continue;
+            let ev: ApifyScanEvent;
+            try {
+              ev = JSON.parse(line) as ApifyScanEvent;
+            } catch {
+              continue;
+            }
+            switch (ev.kind) {
+              case "sourceStart":
+                setApifyProgress((p) => ({ ...p, [ev.source]: { state: "running" } }));
+                break;
+              case "sourceDone":
+                setApifyProgress((p) => ({ ...p, [ev.source]: { state: "done", count: ev.count } }));
+                break;
+              case "sourceError":
+                setApifyProgress((p) => ({ ...p, [ev.source]: { state: "error", message: ev.message } }));
+                break;
+              case "offer":
+                acc.push(ev.offer);
+                setOffers((o) => [...o, ev.offer]);
+                setMatchCount(acc.length);
+                break;
+              case "error":
+                sawError = ev.message;
+                break;
+              default:
+                break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      sawError = e instanceof Error ? e.message : "stream error";
+    }
+
+    runningRef.current = false;
+    if (acc.length > 0) {
+      setMatchCount(acc.length);
+      setPhase("revealing");
+      setStatus(`${acc.length} role${acc.length === 1 ? "" : "s"} found via Apify.`);
+      window.setTimeout(() => setPhase("results"), 850);
+    } else if (sawError) {
+      setError(sawError);
+      setPhase("failed");
+    } else {
+      setPhase("empty-loose");
+    }
+  }, [apifySelected]);
+
   // Switch surface but PRESERVE the current results + filters — toggling scan↔AI must
   // not throw away a completed search (disc#5). A new search (discover/discoverAI)
   // clears + repopulates; an explicit reset() clears. Just stop any half-run.
@@ -500,8 +613,10 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
       offers, sources, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, status, partial, error, added, adding,
       discover, addToPipeline, applyPatch, reset,
       mode, setMode, aiIntent, setAiIntent, discoverAI, aiTrace, aiCost,
+      apifySelected, setApifySelected, apifyAvailable, setApifyAvailable, apifyProgress,
+      apifyConfirming, requestApifyConfirm, cancelApifyConfirm, discoverApify,
     }),
-    [filters, setFilters, initFilters, phase, offers, sources, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, status, partial, error, added, adding, discover, addToPipeline, applyPatch, reset, mode, setMode, aiIntent, discoverAI, aiTrace, aiCost],
+    [filters, setFilters, initFilters, phase, offers, sources, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, status, partial, error, added, adding, discover, addToPipeline, applyPatch, reset, mode, setMode, aiIntent, discoverAI, aiTrace, aiCost, apifySelected, apifyAvailable, apifyProgress, apifyConfirming, requestApifyConfirm, cancelApifyConfirm, discoverApify],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
