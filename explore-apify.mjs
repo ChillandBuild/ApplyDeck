@@ -2,34 +2,18 @@
 
 /**
  * explore-apify.mjs — spawned by the web app's /api/explore/apify route to
- * run selected provider:apify portals.yml entries live, on demand, and
- * stream NDJSON progress to stdout.
+ * run selected Apify discovery jobs live, on demand, and stream NDJSON progress.
  *
- * Why this exists instead of importing plugins/apify/_apify.mjs directly
- * into the Next.js route: web/next.config.mjs pins Turbopack's root to
- * web/, which refuses to bundle modules outside it (see the identical
- * problem already documented in web/src/lib/tracker-table.mjs). Spawning a
- * separate process is how the web app already crosses this boundary — see
- * runDiscovery() in web/src/lib/core/scan.ts spawning scan-ats-full.mjs.
+ * Supports:
+ *   node explore-apify.mjs --platforms
+ *     Prints platform metadata JSON array for the web UI composer.
  *
- * Deliberately NOT scan.mjs and NOT plugins/apify/index.mjs's default
- * fetch() export: that fetch() unconditionally writes JD-cache files to
- * jds/ (saveJd()) with no --dry-run awareness. This script only calls
- * runActor() + the pure mapping helpers, so an Explore "preview" click
- * never writes to disk — see docs/superpowers/specs/
- * 2026-07-24-explore-apify-mode-design.md.
+ *   node explore-apify.mjs --jobs <path-to-json-file>
+ *     Takes a JSON array of job descriptors [{ platform, query, location, country, max }].
+ *     Resolves actor/input/field_map from apify-platforms.mjs registry and runs them.
  *
- * Usage:
  *   node explore-apify.mjs --entries <path-to-json-file>
- *
- * The entries file is a JSON array of portals.yml provider:apify entries
- * (already filtered by the caller): [{ name, actor, input, field_map,
- * timeout_ms? }, ...]. Emits one JSON object per line to stdout:
- *   {"kind":"sourceStart","source":"..."}
- *   {"kind":"offer","offer":{...}}
- *   {"kind":"sourceDone","source":"...","count":N}
- *   {"kind":"sourceError","source":"...","message":"..."}
- *   {"kind":"done","count":N,"offers":[...]}
+ *     Legacy mode: takes pre-built portals.yml provider:apify entries.
  */
 
 import { readFileSync } from 'fs';
@@ -37,19 +21,30 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { runActor } from './plugins/apify/_apify.mjs';
 import { normalizeItem, isHttpsUrl } from './plugins/apify/index.mjs';
+import { PLATFORMS, platformMeta } from './apify-platforms.mjs';
 
-/** Map one raw Apify dataset item to a DiscoveredOffer, or null if unusable.
- *  ats = the full portals.yml entry name (specific and unambiguous — e.g.
- *  "LinkedIn — India (via Apify)"); source = "apify" (the discovery
- *  MECHANISM, mirroring how AI-search offers set source: "ai-search"). */
+/** Map one raw Apify dataset item to a DiscoveredOffer, or null if unusable. */
 export function mapItem(item, entry) {
   const normalized = normalizeItem(item, entry.field_map, entry.defaults);
   if (!normalized.title || !normalized.url || !isHttpsUrl(normalized.url)) return null;
   return { ...normalized, postedAt: '', ats: entry.name, source: 'apify' };
 }
 
-/** Run one entry's actor and emit its events. Never throws — a failing
- *  source becomes a sourceError event so runAll's other entries proceed. */
+/** Convert a job descriptor { platform, query, location, country, max } to an executable entry. */
+export function jobToEntry(job) {
+  const p = PLATFORMS[job.platform];
+  if (!p) throw new Error(`Unknown platform: ${job.platform}`);
+  const name = `${p.label} — "${job.query}"`;
+  const input = p.buildInput(job);
+  return {
+    name,
+    actor: p.actor,
+    input,
+    field_map: p.field_map,
+  };
+}
+
+/** Run one entry's actor and emit its events. Never throws. */
 export async function processEntry(entry, token, emit, deps = {}) {
   const runActorFn = deps.runActorFn || runActor;
   emit({ kind: 'sourceStart', source: entry.name });
@@ -73,8 +68,7 @@ export async function processEntry(entry, token, emit, deps = {}) {
   }
 }
 
-/** Run every entry IN PARALLEL (one failing source must not block the
- *  others), returning only the offers from entries that succeeded. */
+/** Run every entry IN PARALLEL. */
 export async function runAll(entries, token, emit, deps = {}) {
   const collected = [];
   const collectingEmit = (e) => {
@@ -88,29 +82,43 @@ export async function runAll(entries, token, emit, deps = {}) {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isMain) {
-  try {
-    const { config } = await import('dotenv');
-    // quiet: this script's stdout is a strict NDJSON contract the web route
-    // parses line-by-line — dotenv's banner would corrupt it.
-    config({ quiet: true });
-  } catch {
-    // dotenv is optional — fall back to ambient process.env
+  const args = process.argv.slice(2);
+
+  if (args.includes('--platforms')) {
+    process.stdout.write(JSON.stringify(platformMeta()) + '\n');
+    process.exit(0);
   }
 
-  const args = process.argv.slice(2);
+  try {
+    const { config } = await import('dotenv');
+    config({ quiet: true });
+  } catch {
+    // dotenv is optional
+  }
+
+  const jobsFlagIdx = args.indexOf('--jobs');
+  const jobsPath = jobsFlagIdx >= 0 ? args[jobsFlagIdx + 1] : null;
+
   const entriesFlagIdx = args.indexOf('--entries');
   const entriesPath = entriesFlagIdx >= 0 ? args[entriesFlagIdx + 1] : null;
-  if (!entriesPath) {
-    process.stderr.write('explore-apify.mjs: missing required --entries <path>\n');
+
+  if (!jobsPath && !entriesPath) {
+    process.stderr.write('explore-apify.mjs: missing required --jobs <path> or --entries <path> or --platforms\n');
     process.exit(1);
   }
 
-  let entries;
+  let entries = [];
   try {
-    entries = JSON.parse(readFileSync(entriesPath, 'utf8'));
-    if (!Array.isArray(entries)) throw new Error('entries file must contain a JSON array');
+    if (jobsPath) {
+      const rawJobs = JSON.parse(readFileSync(jobsPath, 'utf8'));
+      if (!Array.isArray(rawJobs)) throw new Error('jobs file must contain a JSON array');
+      entries = rawJobs.map(jobToEntry);
+    } else if (entriesPath) {
+      entries = JSON.parse(readFileSync(entriesPath, 'utf8'));
+      if (!Array.isArray(entries)) throw new Error('entries file must contain a JSON array');
+    }
   } catch (err) {
-    process.stderr.write(`explore-apify.mjs: could not read --entries file: ${err.message}\n`);
+    process.stderr.write(`explore-apify.mjs: could not read input file: ${err.message}\n`);
     process.exit(1);
   }
 

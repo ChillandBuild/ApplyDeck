@@ -5,7 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { careerOpsRoot, rootScript } from "@/lib/career-ops";
-import { readPortalsDoc } from "@/lib/core/portals";
 import { isApifyPluginEnabled, isApifyTokenConfigured } from "@/lib/core/apify-discover";
 import type { ApifyScanEvent } from "@/lib/explore";
 
@@ -13,20 +12,21 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-function isObj(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
+interface ComposerBody {
+  keywords?: unknown;
+  platforms?: unknown;
+  location?: unknown;
+  country?: unknown;
+  max?: unknown;
+  sources?: unknown; // legacy fallback
 }
 
 export async function POST(req: NextRequest) {
-  let body: { sources?: unknown } = {};
+  let body: ComposerBody = {};
   try {
-    body = (await req.json()) as { sources?: unknown };
+    body = (await req.json()) as ComposerBody;
   } catch {
-    /* empty body → no sources, caught below */
-  }
-  const requested = Array.isArray(body.sources) ? body.sources.filter((s): s is string => typeof s === "string") : [];
-  if (requested.length === 0) {
-    return Response.json({ error: "no sources selected" }, { status: 400 });
+    /* empty body */
   }
 
   const root = careerOpsRoot();
@@ -38,30 +38,31 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "No Apify token configured — add one in Config → Search Sources." }, { status: 400 });
   }
 
-  const { doc } = readPortalsDoc(root);
-  const companies = Array.isArray(doc.tracked_companies) ? doc.tracked_companies : [];
-  const entries = companies.filter(
-    (c): c is Record<string, unknown> =>
-      isObj(c) && c.provider === "apify" && typeof c.name === "string" && requested.includes(c.name),
-  );
-  if (entries.length === 0) {
-    return Response.json({ error: "none of the requested sources are configured" }, { status: 400 });
+  const keywords = Array.isArray(body.keywords)
+    ? body.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0)
+    : [];
+  const platforms = Array.isArray(body.platforms)
+    ? body.platforms.filter((p): p is string => typeof p === "string" && p.trim().length > 0)
+    : [];
+
+  const location = typeof body.location === "string" ? body.location.trim() : "";
+  const country = typeof body.country === "string" ? body.country.trim() : "US";
+  const max = typeof body.max === "number" && body.max > 0 ? body.max : 20;
+
+  if (keywords.length === 0 || platforms.length === 0) {
+    return Response.json({ error: "At least one keyword and one platform must be selected." }, { status: 400 });
   }
 
-  const entriesFile = path.join(os.tmpdir(), `career-ops-apify-${randomUUID()}.json`);
-  fs.writeFileSync(
-    entriesFile,
-    JSON.stringify(
-      entries.map((e) => ({
-        name: e.name,
-        actor: e.actor,
-        input: e.input ?? {},
-        field_map: e.field_map,
-        timeout_ms: e.timeout_ms,
-      })),
-    ),
-    "utf8",
-  );
+  // Fan out keywords × platforms
+  const jobs: Array<{ platform: string; query: string; location: string; country: string; max: number }> = [];
+  for (const query of keywords) {
+    for (const platform of platforms) {
+      jobs.push({ platform, query, location, country, max });
+    }
+  }
+
+  const jobsFile = path.join(os.tmpdir(), `career-ops-apify-jobs-${randomUUID()}.json`);
+  fs.writeFileSync(jobsFile, JSON.stringify(jobs), "utf8");
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -70,11 +71,11 @@ export async function POST(req: NextRequest) {
         try {
           controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
         } catch {
-          /* stream already closed client-side */
+          /* stream closed */
         }
       };
 
-      const child = spawn(process.execPath, [rootScript("explore-apify"), "--entries", entriesFile], { cwd: root });
+      const child = spawn(process.execPath, [rootScript("explore-apify"), "--jobs", jobsFile], { cwd: root });
 
       let buf = "";
       child.stdout.on("data", (d: Buffer) => {
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
           try {
             send(JSON.parse(line) as ApifyScanEvent);
           } catch {
-            /* skip an unparsable line rather than crashing the stream */
+            /* skip unparsable line */
           }
         }
       });
@@ -96,9 +97,9 @@ export async function POST(req: NextRequest) {
         if (closed) return;
         closed = true;
         try {
-          fs.unlinkSync(entriesFile);
+          fs.unlinkSync(jobsFile);
         } catch {
-          /* best-effort cleanup */
+          /* best effort cleanup */
         }
         try {
           controller.close();
@@ -106,6 +107,7 @@ export async function POST(req: NextRequest) {
           /* already closed */
         }
       };
+
       child.on("error", (err) => {
         send({ kind: "error", message: err.message });
         finish();

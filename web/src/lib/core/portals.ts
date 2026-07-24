@@ -23,6 +23,43 @@ type FilterLists = Pick<ExploreFilters, "positive" | "negative" | "allow" | "blo
 
 export type PortalsDoc = { doc: Record<string, unknown>; exists: boolean; malformed: boolean };
 
+export type ApifySearchConfig = {
+  enabled: boolean;
+  keywords: string[];
+  platforms: string[];
+  location: string;
+  country: string;
+  max: number;
+};
+
+export function getApifySearchConfig(root: string): ApifySearchConfig {
+  const { doc } = readPortalsDoc(root);
+  const cfg = (doc.apify_search ?? {}) as Record<string, unknown>;
+  return {
+    enabled: cfg.enabled !== false,
+    keywords: Array.isArray(cfg.keywords) ? cfg.keywords.filter((k): k is string => typeof k === "string") : [],
+    platforms: Array.isArray(cfg.platforms) ? cfg.platforms.filter((p): p is string => typeof p === "string") : ["indeed"],
+    location: typeof cfg.location === "string" ? cfg.location : "",
+    country: typeof cfg.country === "string" ? cfg.country : "US",
+    max: typeof cfg.max === "number" && cfg.max > 0 ? cfg.max : 20,
+  };
+}
+
+export function updateApifySearchConfig(root: string, update: Partial<ApifySearchConfig>): void {
+  const file = path.join(root, "portals.yml");
+  const { doc } = readPortalsDoc(root);
+  const current = getApifySearchConfig(root);
+  const updated: ApifySearchConfig = {
+    ...current,
+    ...update,
+  };
+  const newDoc = {
+    ...doc,
+    apify_search: updated,
+  };
+  fs.writeFileSync(file, yaml.dump(newDoc), "utf8");
+}
+
 /** Tolerant portals.yml reader shared by every read-only consumer (the Config
  *  snapshot, the Explore Apify picker, …). Never throws. `malformed` is true
  *  ONLY when the file exists but fails to parse — a file that parses to a

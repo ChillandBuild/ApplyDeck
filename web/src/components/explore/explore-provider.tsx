@@ -19,6 +19,8 @@ import {
 import { makeAiStreamParser, type AiTraceChunk } from "@/lib/explore-ai";
 import type { ApifySource } from "./apify-source-picker";
 
+import { ApifyComposerParams } from "./apify-composer";
+
 export type Phase =
   | "idle"
   | "casting"
@@ -83,7 +85,7 @@ type ExploreCtx = {
   apifyConfirming: boolean;
   requestApifyConfirm: () => void;
   cancelApifyConfirm: () => void;
-  discoverApify: () => Promise<void>;
+  discoverApify: (params: ApifyComposerParams) => Promise<void>;
 };
 
 const Ctx = createContext<ExploreCtx | null>(null);
@@ -462,19 +464,22 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
   // Every click costs real Apify credits, so this is only ever invoked after
   // requestApifyConfirm()'s dialog is explicitly accepted (see
   // ExplorerView's Apify branch) — never on a bare button click.
-  const discoverApify = useCallback(async () => {
+  const discoverApify = useCallback(async (params: ApifyComposerParams) => {
     if (runningRef.current) return;
-    const sources = apifySelected;
-    if (sources.length === 0) return;
+    if (!params.keywords.length || !params.platforms.length) return;
     setApifyConfirming(false);
     runningRef.current = true;
     setPhase("casting");
     setOffers([]);
     setMatchCount(0);
     setError("");
-    setStatus("Running selected sources on Apify…");
+    setStatus("Running Apify composer jobs…");
+
+    const fanoutJobs = params.keywords.flatMap((k) =>
+      params.platforms.map((p) => `${p.toUpperCase()} — "${k}"`)
+    );
     const initProgress: Record<string, ApifySourceProgress> = {};
-    for (const s of sources) initProgress[s] = { state: "queued" };
+    for (const j of fanoutJobs) initProgress[j] = { state: "queued" };
     setApifyProgress(initProgress);
 
     const acc: DiscoveredOffer[] = [];
@@ -483,7 +488,7 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
       const r = await fetch("/api/explore/apify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sources }),
+        body: JSON.stringify(params),
       });
       if (r.status === 400) {
         const d = await r.json().catch(() => ({}));
@@ -549,7 +554,7 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
     } else {
       setPhase("empty-loose");
     }
-  }, [apifySelected]);
+  }, []);
 
   // Switch surface but PRESERVE the current results + filters — toggling scan↔AI must
   // not throw away a completed search (disc#5). A new search (discover/discoverAI)

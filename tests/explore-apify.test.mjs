@@ -7,7 +7,7 @@ import { pathToFileURL } from 'url';
 console.log('\nexplore-apify.mjs');
 
 const mod = await import(pathToFileURL(join(ROOT, 'explore-apify.mjs')).href);
-const { processEntry, mapItem, runAll } = mod;
+const { processEntry, mapItem, runAll, jobToEntry } = mod;
 
 const ENTRY = {
   name: 'LinkedIn — India (via Apify)',
@@ -15,6 +15,16 @@ const ENTRY = {
   input: { keywords: 'Data Scientist' },
   field_map: { title: 'title', url: 'url', company: 'company', location: 'location' },
 };
+
+// jobToEntry — converts job spec to executable entry
+{
+  const entry = jobToEntry({ platform: 'indeed', query: 'Frontend Dev', location: 'Austin', country: 'US', max: 10 });
+  if (entry.name === 'Indeed — "Frontend Dev"' && entry.actor === 'misceres/indeed-scraper' && entry.input.position === 'Frontend Dev' && entry.input.maxItems === 10) {
+    pass('jobToEntry() maps job descriptor to executable entry using platform registry');
+  } else {
+    fail(`jobToEntry() generated unexpected entry: ${JSON.stringify(entry)}`);
+  }
+}
 
 // mapItem — pure mapping, no network.
 {

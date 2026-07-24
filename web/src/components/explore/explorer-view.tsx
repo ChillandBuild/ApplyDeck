@@ -13,7 +13,7 @@ import { AiHuntView } from "./ai-hunt-view";
 import { ExploreModeToggle } from "./explore-mode-toggle";
 import { AiSearchBox } from "./ai-search-box";
 import { ResultsList, type EnrichedOffer } from "./results-list";
-import { ApifySourcePicker, type ApifySource } from "./apify-source-picker";
+import { ApifyComposer, type ApifyComposerParams } from "./apify-composer";
 import { useExplore, type ApifySourceProgress } from "./explore-provider";
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -138,16 +138,9 @@ export function ExplorerView({
 
       {isApify ? (
         <ApifyModeBody
-          selected={apifySelected}
-          setSelected={setApifySelected}
-          available={apifyAvailable}
-          setAvailable={setApifyAvailable}
-          confirming={apifyConfirming}
-          requestConfirm={requestApifyConfirm}
-          cancelConfirm={cancelApifyConfirm}
           onDiscover={discoverApify}
+          running={running}
           phase={phase}
-          progress={apifyProgress}
           error={error}
           isResults={isResults}
           offers={enriched}
@@ -310,98 +303,33 @@ function ApifyRunningView({ progress }: { progress: Record<string, ApifySourcePr
 }
 
 function ApifyModeBody({
-  selected,
-  setSelected,
-  available,
-  setAvailable,
-  confirming,
-  requestConfirm,
-  cancelConfirm,
   onDiscover,
+  running,
   phase,
-  progress,
   error,
   isResults,
   offers,
 }: {
-  selected: string[];
-  setSelected: (n: string[]) => void;
-  available: ApifySource[];
-  setAvailable: (s: ApifySource[]) => void;
-  confirming: boolean;
-  requestConfirm: () => void;
-  cancelConfirm: () => void;
-  onDiscover: () => void;
+  onDiscover: (params: ApifyComposerParams) => void;
+  running: boolean;
   phase: string;
-  progress: Record<string, ApifySourceProgress>;
   error: string;
   isResults: boolean;
   offers: EnrichedOffer[];
 }) {
-  const loaded = useRef(false);
   return (
     <>
-      <div className="mb-6 rounded-2xl border border-border bg-surface/30 p-5">
-        <p className="mb-2 text-[13px] font-medium text-foreground">Sources</p>
-        <ApifySourcePicker
-          selected={selected}
-          onChange={setSelected}
-          onLoaded={(s) => {
-            if (!loaded.current) {
-              loaded.current = true;
-              setAvailable(s);
-            }
-          }}
-        />
-        {available.length === 0 ? (
-          <div className="mt-3 rounded-lg border border-border bg-surface/40 px-3.5 py-3 text-sm text-muted">
-            No Apify sources configured yet —{" "}
-            <Link href="/config" className="font-medium text-brand hover:underline">
-              add one in Config
-            </Link>
-            .
-          </div>
-        ) : (
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              disabled={selected.length === 0}
-              onClick={requestConfirm}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground shadow-sm transition-all hover:brightness-110 disabled:opacity-50 max-sm:min-h-[44px]"
-            >
-              <Zap className="size-4" /> Discover
-            </button>
-            <span className="inline-flex items-center gap-1.5 text-[12px] text-muted">
-              <span className="size-1.5 rounded-full bg-amber-500" />
-              Uses your Apify credits — {selected.length} source{selected.length === 1 ? "" : "s"} selected.
-            </span>
-          </div>
-        )}
+      <div className="mb-6">
+        <ApifyComposer onRun={onDiscover} running={running} />
       </div>
 
-      {confirming && (
-        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-          <p className="text-sm font-medium text-foreground">
-            Run {selected.length} source{selected.length === 1 ? "" : "s"} on Apify — uses your Apify credits?
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={onDiscover} className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-brand-foreground transition hover:brightness-110">
-              Confirm
-            </button>
-            <button onClick={cancelConfirm} className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground transition hover:border-brand/40">
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {isResults && <ResultsList offers={offers} />}
-      {phase === "failed" && <FailedCard msg={error} onRetry={onDiscover} />}
+      {phase === "failed" && <FailedCard msg={error} onRetry={() => {}} />}
       {phase === "empty-loose" && (
         <div className="rounded-2xl border border-border bg-surface/30 px-6 py-12 text-center">
           <Zap className="mx-auto size-6 text-brand" />
-          <h2 className={`${instrumentSerif.className} mt-4 text-2xl text-foreground`}>No matches from those sources.</h2>
-          <p className="mx-auto mt-1.5 max-w-md text-sm text-muted">Try different sources, or check back later — these actors reflect what's live on each platform right now.</p>
+          <h2 className={`${instrumentSerif.className} mt-4 text-2xl text-foreground`}>No matches found.</h2>
+          <p className="mx-auto mt-1.5 max-w-md text-sm text-muted">Try adjusting your keywords, platforms, or location filter.</p>
         </div>
       )}
     </>
