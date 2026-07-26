@@ -24,6 +24,11 @@
 //         url:      url
 //         company:  [company, companyName]
 //         location: [location, formattedLocation]
+//       # urlBase (optional): some actors return a site-relative url path (e.g.
+//       # Naukri's jdURL: "/job-listings-..."). Set urlBase to the site origin
+//       # and it resolves relative paths to absolute https URLs; already-absolute
+//       # urls pass through untouched.
+//       urlBase: "https://www.naukri.com"
 
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { createHash } from 'crypto';
@@ -155,10 +160,28 @@ ${descriptionBody}
   }
 }
 
-export function normalizeItem(item, fieldMap, defaults) {
+// Some actors (e.g. Naukri) return a site-relative path instead of an absolute
+// URL. urlBase lets a platform/entry declare its origin so a relative path can
+// be resolved into something isHttpsUrl() will actually accept. Already-absolute
+// URLs pass through untouched.
+function resolveUrl(url, urlBase) {
+  if (!url || !urlBase) return url;
+  try {
+    new URL(url);
+    return url; // already absolute
+  } catch {
+    try {
+      return new URL(url, urlBase).toString();
+    } catch {
+      return url;
+    }
+  }
+}
+
+export function normalizeItem(item, fieldMap, defaults, urlBase) {
   const out = {
     title: String(pickField(item, fieldMap.title) || ''),
-    url: String(pickField(item, fieldMap.url) || ''),
+    url: resolveUrl(String(pickField(item, fieldMap.url) || ''), urlBase),
     company: fieldMap.company ? String(pickField(item, fieldMap.company) || '') : '',
     location: fieldMap.location ? String(pickField(item, fieldMap.location) || '') : '',
   };
@@ -207,7 +230,7 @@ export default {
 
       return items
         .map(item => {
-          const normalized = normalizeItem(item, entry.field_map, entry.defaults);
+          const normalized = normalizeItem(item, entry.field_map, entry.defaults, entry.urlBase);
           if (!normalized.title || !normalized.url) return null;
           if (!isHttpsUrl(normalized.url)) return null;
           if (!useLocalJd) return normalized;

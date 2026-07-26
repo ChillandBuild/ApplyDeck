@@ -25,6 +25,10 @@ export type ExploreFilters = {
   sinceDays: number;
   ats: AtsSource[];
   limitPerAts: number;
+  /** Sample a random `limitPerAts` slice per source instead of always the
+   *  same first N (scan-ats-full.mjs's --shuffle) — without it, re-casting
+   *  a capped scan rescans the identical companies every time. */
+  shuffle: boolean;
 };
 
 export const DEFAULT_FILTERS: ExploreFilters = {
@@ -36,6 +40,7 @@ export const DEFAULT_FILTERS: ExploreFilters = {
   sinceDays: 7,
   ats: [...ATS_SOURCES],
   limitPerAts: 150,
+  shuffle: false,
 };
 
 export type DiscoveredOffer = {
@@ -153,6 +158,7 @@ export function parseExplorePatch(
   if (raw.limit !== undefined) next.limitPerAts = clampNum(raw.limit, 50, 500, base.limitPerAts);
   if (raw.limitPerAts !== undefined) next.limitPerAts = clampNum(raw.limitPerAts, 50, 500, base.limitPerAts);
   if (raw.ats !== undefined) next.ats = cleanAts(raw.ats);
+  if (raw.shuffle !== undefined) next.shuffle = Boolean(raw.shuffle) && raw.shuffle !== "false" && raw.shuffle !== "0";
   return next;
 }
 
@@ -167,6 +173,7 @@ export function filtersToParams(f: ExploreFilters): string {
   if (f.sinceDays !== DEFAULT_FILTERS.sinceDays) sp.set("since", String(f.sinceDays));
   if (f.ats.length !== ATS_SOURCES.length) sp.set("ats", f.ats.join(","));
   if (f.limitPerAts !== DEFAULT_FILTERS.limitPerAts) sp.set("limit", String(f.limitPerAts));
+  if (f.shuffle !== DEFAULT_FILTERS.shuffle) sp.set("shuffle", f.shuffle ? "1" : "0");
   return sp.toString();
 }
 
@@ -182,6 +189,7 @@ export function paramsToFilters(sp: URLSearchParams, base: ExploreFilters = DEFA
       since: sp.get("since") ?? undefined,
       ats: split(sp.get("ats")),
       limit: sp.get("limit") ?? undefined,
+      shuffle: sp.get("shuffle") ?? undefined,
     },
     base,
   );

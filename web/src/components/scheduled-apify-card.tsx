@@ -139,7 +139,7 @@ export function ScheduledApifyCard() {
           aria-checked={enabled}
           onClick={() => setEnabled((v) => !v)}
           className={cn(
-            "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
             enabled ? "bg-brand" : "bg-border"
           )}
         >

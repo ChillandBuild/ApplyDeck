@@ -146,6 +146,19 @@ export function FilterBuilder({
               className="w-full accent-brand"
             />
           </div>
+          <label className="flex items-start gap-2 text-[12px] text-muted">
+            <input
+              type="checkbox"
+              checked={filters.shuffle}
+              onChange={(e) => set({ shuffle: e.target.checked })}
+              className="mt-0.5 accent-brand"
+            />
+            <span>
+              <span className="font-medium text-foreground">Shuffle sample</span> — without this, a capped scan
+              always checks the same companies; re-casting never reaches the rest of the directory. Turn it on to
+              sample a different slice each time.
+            </span>
+          </label>
         </div>
       )}
     </div>

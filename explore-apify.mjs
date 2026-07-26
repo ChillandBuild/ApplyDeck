@@ -25,7 +25,7 @@ import { PLATFORMS, platformMeta } from './apify-platforms.mjs';
 
 /** Map one raw Apify dataset item to a DiscoveredOffer, or null if unusable. */
 export function mapItem(item, entry) {
-  const normalized = normalizeItem(item, entry.field_map, entry.defaults);
+  const normalized = normalizeItem(item, entry.field_map, entry.defaults, entry.urlBase);
   if (!normalized.title || !normalized.url || !isHttpsUrl(normalized.url)) return null;
   return { ...normalized, postedAt: '', ats: entry.name, source: 'apify' };
 }
@@ -41,6 +41,7 @@ export function jobToEntry(job) {
     actor: p.actor,
     input,
     field_map: p.field_map,
+    urlBase: p.urlBase,
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Undo2 } from "lucide-react";
 import { useJobs } from "@/components/jobs/job-store";
 import type { InboxJob } from "@/lib/career-ops";
@@ -23,6 +24,7 @@ const BATCH = 20;
 // role relevant — order is freshness with a single documented plug point.
 export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
   const { jobs, startJob } = useJobs();
+  const router = useRouter();
 
   // facets
   const [within, setWithin] = useState<number | null>(null);
@@ -59,6 +61,14 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
   useEffect(() => {
     if (loaded) try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(hidden)); } catch { /* quota */ }
   }, [hidden, loaded]);
+  // Once a Skip/Delete's dismiss round-trips and the server re-fetches, the row
+  // is gone from `inbox` for good — prune it from `hidden` too so "N hidden ·
+  // restore" doesn't keep counting postings that no longer exist.
+  useEffect(() => {
+    if (!loaded) return;
+    const present = new Set(inbox.map((j) => j.url));
+    setHidden((h) => h.filter((u) => present.has(u)));
+  }, [inbox, loaded]);
   // auto-dismiss the undo toast
   useEffect(() => {
     if (!undo) return;
@@ -134,6 +144,33 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
   const hiddenCount = hidden.length;
 
   const isShortlisted = (url: string) => shortlist.some((s) => s.url === url);
+  const allVisibleSelected = visible.length > 0 && visible.every((e) => selected.has(e.job.url));
+  const toggleSelectAll = () =>
+    setSelected((s) => {
+      if (allVisibleSelected) {
+        const n = new Set(s);
+        for (const e of visible) n.delete(e.job.url);
+        return n;
+      }
+      return new Set([...s, ...visible.map((e) => e.job.url)]);
+    });
+
+  // Checks the URL off in data/pipeline.md itself (same `[x]` the CLI writes once
+  // a posting is processed) — this is what makes it actually leave "N in inbox",
+  // not just this browser's view. Best-effort: if it fails, the row stays hidden
+  // locally and the header count simply won't drop until it's retried.
+  const markPipeline = async (urls: string[], done: boolean) => {
+    try {
+      await fetch("/api/pipeline/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls, done }),
+      });
+    } catch {
+      /* best-effort */
+    }
+    router.refresh();
+  };
 
   const save = (job: InboxJob) => {
     if (isShortlisted(job.url)) return;
@@ -141,7 +178,14 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
   };
   const skip = (job: InboxJob) => {
     setHidden((h) => (h.includes(job.url) ? h : [...h, job.url]));
-    setUndo({ label: `Skipped ${job.company}`, fn: () => setHidden((h) => h.filter((u) => u !== job.url)) });
+    setUndo({
+      label: `Skipped ${job.company}`,
+      fn: () => {
+        setHidden((h) => h.filter((u) => u !== job.url));
+        markPipeline([job.url], false);
+      },
+    });
+    markPipeline([job.url], true);
   };
   const toggleSelect = (url: string) =>
     setSelected((s) => {
@@ -156,6 +200,20 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
       .map((e) => ({ url: e.job.url, company: e.job.company, role: e.job.role }));
     if (add.length) setShortlist((s) => [...s, ...add]);
     setSelected(new Set());
+  };
+  const deleteSelected = () => {
+    const urls = [...selected];
+    if (!urls.length) return;
+    setHidden((h) => [...h, ...urls.filter((u) => !h.includes(u))]);
+    setUndo({
+      label: `Skipped ${urls.length}`,
+      fn: () => {
+        setHidden((h) => h.filter((u) => !urls.includes(u)));
+        markPipeline(urls, false);
+      },
+    });
+    setSelected(new Set());
+    markPipeline(urls, true);
   };
 
   const estimate = useMemo(() => {
@@ -202,9 +260,20 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
 
       {/* batch header: fresh slice by default, or the full filtered set */}
       <div className="mt-4 flex items-baseline justify-between gap-3">
-        <p className="text-sm font-medium text-foreground">
-          {capped ? "Fresh — worth a look" : anyFacet ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}` : "All roles"}
-        </p>
+        <div className="flex items-center gap-2">
+          {visible.length > 0 && (
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={toggleSelectAll}
+              aria-label={allVisibleSelected ? "Deselect all" : "Select all"}
+              className="size-4 shrink-0 accent-brand max-sm:min-h-[44px] max-sm:min-w-[24px]"
+            />
+          )}
+          <p className="text-sm font-medium text-foreground">
+            {capped ? "Fresh — worth a look" : anyFacet ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}` : "All roles"}
+          </p>
+        </div>
         {hiddenCount > 0 && (
           <button type="button" onClick={() => setHidden([])} className="text-xs text-faint transition-colors hover:text-foreground">
             {hiddenCount} hidden · restore
@@ -218,6 +287,9 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
           <span className="font-medium text-brand tabular-nums">{selected.size} selected</span>
           <button type="button" onClick={saveSelected} className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-brand-foreground max-sm:min-h-[44px]">
             Save to shortlist
+          </button>
+          <button type="button" onClick={deleteSelected} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-red-500/40 hover:text-red-600 max-sm:min-h-[44px]">
+            Delete
           </button>
           <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted hover:text-foreground max-sm:min-h-[44px]">
             Clear

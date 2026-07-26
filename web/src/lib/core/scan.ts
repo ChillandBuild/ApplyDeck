@@ -95,6 +95,7 @@ export function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEvent) =>
       "--limit",
       String(Math.max(1, filters.limitPerAts || 150)),
     ];
+    if (filters.shuffle) args.push("--shuffle");
     if (useJson) args.push("--json");
 
     const child = spawn(process.execPath, args, {

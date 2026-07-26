@@ -44,7 +44,7 @@ export const PLATFORMS = {
   glassdoor: {
     id: 'glassdoor',
     label: 'Glassdoor',
-    cost: 'usage',
+    cost: 'rental',
     actor: 'bebity/glassdoor-jobs-scraper',
     buildInput: ({ query, location, country, max }) => ({
       keyword: query,
@@ -63,6 +63,9 @@ export const PLATFORMS = {
     label: 'Naukri',
     cost: 'usage',
     actor: 'easyapi/naukri-jobs-scraper',
+    // The actor returns jdURL as a site-relative path (e.g. "/job-listings-...");
+    // urlBase resolves it to an absolute https URL so it survives isHttpsUrl().
+    urlBase: 'https://www.naukri.com',
     buildInput: ({ query, location, country, max }) => ({
       keyword: query,
       location: location || '',
@@ -70,7 +73,7 @@ export const PLATFORMS = {
     }),
     field_map: {
       title: ['title', 'jobTitle', 'designation'],
-      url: ['url', 'jdUrl', 'link'],
+      url: ['jdURL', 'url', 'jdUrl', 'link'],
       company: ['company', 'companyName', 'companyLabel'],
       location: ['location', 'place', 'city'],
     },
