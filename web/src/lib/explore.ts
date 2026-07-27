@@ -155,8 +155,8 @@ export function parseExplorePatch(
   }
   if (raw.since !== undefined) next.sinceDays = clampNum(raw.since, 1, 60, base.sinceDays);
   if (raw.sinceDays !== undefined) next.sinceDays = clampNum(raw.sinceDays, 1, 60, base.sinceDays);
-  if (raw.limit !== undefined) next.limitPerAts = clampNum(raw.limit, 50, 500, base.limitPerAts);
-  if (raw.limitPerAts !== undefined) next.limitPerAts = clampNum(raw.limitPerAts, 50, 500, base.limitPerAts);
+  if (raw.limit !== undefined) next.limitPerAts = clampNum(raw.limit, 50, 2000, base.limitPerAts);
+  if (raw.limitPerAts !== undefined) next.limitPerAts = clampNum(raw.limitPerAts, 50, 2000, base.limitPerAts);
   if (raw.ats !== undefined) next.ats = cleanAts(raw.ats);
   if (raw.shuffle !== undefined) next.shuffle = Boolean(raw.shuffle) && raw.shuffle !== "false" && raw.shuffle !== "0";
   return next;

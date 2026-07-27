@@ -139,7 +139,7 @@ export function FilterBuilder({
             <input
               type="range"
               min={50}
-              max={500}
+              max={2000}
               step={50}
               value={filters.limitPerAts}
               onChange={(e) => set({ limitPerAts: Number(e.target.value) })}
