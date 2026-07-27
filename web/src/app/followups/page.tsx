@@ -5,7 +5,9 @@ import { FollowUpCard, type FollowUp } from "@/components/home/follow-up-card";
 export const dynamic = "force-dynamic";
 
 type Entry = FollowUp & { urgency: "overdue" | "urgent" | "waiting" | "cold"; nextFollowupDate?: string | null };
-type FollowupResult = { metadata: { totalTracked: number; overdue: number; urgent: number; waiting: number; cold: number }; entries: Entry[] };
+type FollowupResult =
+  | { error: string }
+  | { metadata: { totalTracked: number; overdue: number; urgent: number; waiting: number; cold: number }; entries: Entry[] };
 
 const GROUPS: { key: Entry["urgency"]; title: string; hint: string }[] = [
   { key: "overdue", title: "Overdue", hint: "Past the usual window — worth a nudge now." },
@@ -16,13 +18,18 @@ const GROUPS: { key: Entry["urgency"]; title: string; hint: string }[] = [
 
 export default async function FollowupsPage() {
   const result = await runJsonScript<FollowupResult>("followup-cadence");
-  const entries = result?.entries ?? [];
+  const available = result && !("error" in result);
+  const entries = available ? result.entries : [];
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="font-display text-2xl tracking-tight text-landing">Follow-ups</h1>
       <p className="mt-1 text-sm text-muted">
-        {result ? `${result.metadata.totalTracked} applications tracked for follow-up.` : "Follow-up cadence not available."}
+        {!result
+          ? "Follow-up cadence not available."
+          : !available
+            ? result.error
+            : `${result.metadata.totalTracked} applications tracked for follow-up.`}
       </p>
 
       {entries.length === 0 ? (
