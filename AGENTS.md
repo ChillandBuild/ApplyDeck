@@ -55,6 +55,17 @@ If no → `node update-system.mjs dismiss`. Every other status (`up-to-date`, `d
 
 Separately, to check what's new in the *original* open-source career-ops project (a distinct, manual, maintainer-only step — unrelated to the update check above): `git fetch upstream main && git diff upstream/main -- <path>`, then port over anything useful by hand, keeping ApplyDeck's own branding intact.
 
+## Web Dashboard
+
+Whenever the user asks to open, view, or see their dashboard — during onboarding (see Step 6 below) or **at any later point in any session** ("open my dashboard", "show me the pipeline visually", "let's use the web UI") — do this:
+
+1. Check if it's already running: fetch `http://localhost:3000` (or whichever port `web/.dev-server.log` last recorded). If something responds, just give them that URL — never start a second instance.
+2. If nothing responds: if `web/node_modules` doesn't exist yet, run `cd web && npm install` first (a one-time cost — after this it never needs to run again). Then start it as a background/non-blocking process: `cd web && npm run dev`, redirecting output to `web/.dev-server.log`.
+3. Give it a few seconds, then read the log's `Local: http://localhost:PORT` line for the real URL — Next.js may not land on `:3000` if it's busy — and confirm it's actually serving with a quick fetch before telling the user.
+4. If anything fails (no Node, install error, server doesn't come up): during onboarding, say nothing and drop the dashboard mention entirely — don't block first-run setup on it. Outside onboarding, when the user explicitly asked for the dashboard, tell them plainly it didn't start and suggest they try `cd web && npm run dev` themselves — don't silently retry forever.
+
+The data itself (`cv.md`, `data/pipeline.md`, `data/applications.md`, `reports/`, `config/`, any Apify/Serper keys saved via the dashboard into `.env`) is just files on disk — it persists indefinitely regardless of how long the dashboard process has been stopped. Only the *server process* needs restarting after it's been closed; the data itself never needs re-entering.
+
 ## What is ApplyDeck
 
 AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluation, CV generation, portal scanning, batch processing. Runs on any AI coding CLI following the [open agent skill standard](https://agentskills.io) (Claude Code, Codex, OpenCode, Qwen, Copilot, Kimi, Antigravity CLI, Grok Build CLI). Legacy Gemini API evaluation remains via `gemini-eval.mjs`.
@@ -158,8 +169,8 @@ If `config/profile.yml` is missing, copy from `config/profile.example.yml` and a
 Fill in `config/profile.yml` (including `spend_tier`, default `standard`). Archetypes and targeting narrative go to `modes/_profile.md` or `config/profile.yml` — never `modes/_shared.md`.
 
 #### Step 3: Portals (recommended)
-If `portals.yml` is missing:
-> "I'll set up the job scanner with 45+ pre-configured companies. Want me to customize the search keywords for your target roles?"
+If `portals.yml` is missing, count the active company entries in the template first (`grep -c "^\s*careers_url:" templates/portals.example.yml`) so the number told to the user never goes stale as the template grows — do not hardcode a count here:
+> "I'll set up the job scanner with {count}+ pre-configured companies. Want me to customize the search keywords for your target roles?"
 
 Copy `templates/portals.example.yml` → `portals.yml`; if they gave target roles in Step 2, update `title_filter.positive`.
 
@@ -190,11 +201,7 @@ Store insights in `config/profile.yml` (narrative), `modes/_profile.md`, or `art
 
 #### Step 6: Ready
 
-**Start the visual dashboard automatically, before the confirmation message below:**
-1. Check if it's already running: fetch `http://localhost:3000` (or whichever port `web/.dev-server.log` last recorded). If something responds, reuse that URL — never start a second instance.
-2. If nothing responds, start it as a background/non-blocking process: `cd web && npm run dev`, redirecting output to `web/.dev-server.log` so the bound port can be read back. Next.js may pick a different port than 3000 if it's busy — read the log's `Local: http://localhost:PORT` line for the real URL instead of assuming 3000.
-3. Give it a few seconds, then confirm it's actually serving (a quick fetch of the URL) before including it in the message.
-4. If the earlier background `npm install` failed, or the server doesn't come up within a reasonable wait, drop the dashboard bullet from the message entirely and say nothing about it — the CLI works fully without it, and a failed background setup must never block onboarding.
+**Start the visual dashboard automatically, before the confirmation message below** — follow the "Web Dashboard" section above (the onboarding failure mode: say nothing and drop the bullet if it doesn't come up).
 
 Once all files exist, confirm:
 > "You're all set! You can now:
