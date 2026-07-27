@@ -17,7 +17,7 @@ const RECENCY = [
 
 function Label({ children, hint }: { children: React.ReactNode; hint?: string }) {
   return (
-    <div className="mb-1.5 flex items-baseline justify-between">
+    <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
       <span className="text-[13px] font-medium text-foreground">{children}</span>
       {hint && <span className="text-[11px] text-faint">{hint}</span>}
     </div>
@@ -58,9 +58,9 @@ export function FilterBuilder({
         <KeywordField values={filters.negative} tone="exc" placeholder="manager, sales, contract…" onChange={(v) => set({ negative: v })} />
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
         <div>
-          <Label hint="postings published in this window">
+          <Label>
             <span className="inline-flex items-center gap-1.5">
               <Clock className="size-3.5 text-muted" /> Posted within
             </span>
