@@ -1,9 +1,9 @@
 {
-  "name": "@santifer/career-ops",
-  "version": "1.22.0",
-  "description": "One-command installer for career-ops — the AI-powered job search pipeline built on Claude Code.",
+  "name": "applydeck",
+  "version": "1.0.0",
+  "description": "One-command installer for ApplyDeck — the AI-powered job search pipeline, based on career-ops, built on Claude Code.",
   "bin": {
-    "career-ops": "bin/cli.mjs"
+    "applydeck": "bin/cli.mjs"
   },
   "type": "module",
   "files": [
@@ -15,6 +15,7 @@
     "node": ">=18"
   },
   "keywords": [
+    "applydeck",
     "career-ops",
     "claude-code",
     "job-search",
@@ -22,15 +23,15 @@
     "create",
     "cli"
   ],
-  "author": "Santiago Fernández de Valderrama <hi@santifer.io> (https://santifer.io)",
-  "homepage": "https://github.com/santifer/career-ops#readme",
+  "author": "K Prem <kanthaiyee@gmail.com>",
+  "homepage": "https://github.com/ChillandBuild/ApplyDeck#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/santifer/career-ops.git",
+    "url": "git+https://github.com/ChillandBuild/ApplyDeck.git",
     "directory": "scaffolder"
   },
   "bugs": {
-    "url": "https://github.com/santifer/career-ops/issues"
+    "url": "https://github.com/ChillandBuild/ApplyDeck/issues"
   },
   "license": "MIT",
   "dependencies": {}

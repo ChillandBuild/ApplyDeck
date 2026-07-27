@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// career-ops scaffolder — one-command install.
+// ApplyDeck scaffolder — one-command install.
 // Clones the repo at the latest release tag and installs dependencies.
 // It deliberately does NOT create cv.md / config/profile.yml / portals.yml:
 // the agent runs a conversational onboarding on first launch (see AGENTS.md
@@ -11,11 +11,11 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { ensureSkillEntrypoints } from "./skill-entrypoints.mjs";
 
-const REPO = "https://github.com/santifer/career-ops.git";
-const LATEST_RELEASE = "https://api.github.com/repos/santifer/career-ops/releases/latest";
+const REPO = "https://github.com/ChillandBuild/ApplyDeck.git";
+const LATEST_RELEASE = "https://api.github.com/repos/ChillandBuild/ApplyDeck/releases/latest";
 const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 
-// career-ops is AI-agnostic: every one of these CLIs reads AGENTS.md and works
+// ApplyDeck is AI-agnostic: every one of these CLIs reads AGENTS.md and works
 // out of the box. We only detect them to tailor the final message — we never
 // install, configure, or remove anything per-CLI.
 const SUPPORTED_CLIS = [
@@ -29,13 +29,13 @@ const SUPPORTED_CLIS = [
   { name: "Grok Build CLI", cmd: "grok" },
 ];
 
-const USAGE = `career-ops — set up an AI job search workspace.
+const USAGE = `ApplyDeck — set up an AI job search workspace.
 
 Usage:
-  npx career-ops init [folder]    Create a new workspace (default: ./career-ops)
+  npx applydeck init [folder]    Create a new workspace (default: ./applydeck)
 
 After setup, open your AI coding tool inside the folder and paste a job offer.
-Docs: https://github.com/santifer/career-ops`;
+Docs: https://github.com/ChillandBuild/ApplyDeck`;
 
 function die(msg) {
   console.error(`\n✗ ${msg}\n`);
@@ -73,7 +73,7 @@ function detectClis() {
 async function latestTag() {
   try {
     const res = await fetch(LATEST_RELEASE, {
-      headers: { "User-Agent": "career-ops-cli", Accept: "application/vnd.github+json" },
+      headers: { "User-Agent": "applydeck-cli", Accept: "application/vnd.github+json" },
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -92,7 +92,7 @@ async function main() {
   }
   if (cmd !== "init") die(`Unknown command "${cmd}".\n${USAGE}`);
 
-  const target = dirArg || "career-ops";
+  const target = dirArg || "applydeck";
   if (existsSync(target) && readdirSync(target).length > 0) {
     die(`Target folder "${target}" already exists and is not empty. Pick another name.`);
   }
@@ -104,7 +104,7 @@ async function main() {
 
   // 1. Clone at the latest stable release (fall back to the default branch).
   const tag = await latestTag();
-  console.log(`\n→ Cloning career-ops${tag ? ` @ ${tag}` : ""} into ${display} ...`);
+  console.log(`\n→ Cloning ApplyDeck${tag ? ` @ ${tag}` : ""} into ${display} ...`);
   const cloneArgs = ["clone", "--depth=1"];
   if (tag) cloneArgs.push("--branch", tag);
   cloneArgs.push(REPO, target);
@@ -131,7 +131,7 @@ async function main() {
   // 3. Next steps. We do NOT scaffold cv.md / profile.yml / portals.yml here:
   // their absence is what triggers the agent's conversational onboarding on
   // first launch, which sets them up far better than copying placeholders.
-  console.log(`\n✓ career-ops is ready in ${display}\n`);
+  console.log(`\n✓ ApplyDeck is ready in ${display}\n`);
   console.log("Next steps:");
   console.log(`  1. cd ${target}`);
 
@@ -147,7 +147,7 @@ async function main() {
 
   console.log("\nOn first launch it walks you through setup — your CV, profile and target");
   console.log("roles — just by chatting. Nothing to configure by hand.");
-  console.log("\ncareer-ops is AI-agnostic — Claude Code, Codex, Qwen, OpenCode, Copilot, Antigravity and Grok all work.");
+  console.log("\nApplyDeck is AI-agnostic — Claude Code, Codex, Qwen, OpenCode, Copilot, Antigravity and Grok all work.");
   console.log("\nOptional (for PDF generation):");
   console.log("  npx playwright install chromium\n");
 }
