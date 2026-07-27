@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { pipelineSummary } from "@/lib/career-ops";
 import { canonStatus, scoreNum } from "@/lib/format";
+import { runJsonScript } from "@/lib/core/run-json-script";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,40 @@ const STAGES: { key: string; label: string }[] = [
   { key: "DISCARDED", label: "Discarded" },
 ];
 
-export default function Analytics() {
+type UpskillGap = { skill: string; weightedScore: number; tier: "High" | "Medium" | "Low"; reports: number };
+type UpskillResult = { gaps: UpskillGap[] };
+
+type Recommendation = { action: string; reasoning: string; impact: "high" | "medium" | "low" };
+type VendorRow = { vendor: string; total: number; advanceRate: number; sharePct: number; sufficientSample: boolean };
+type TechGap = { skill: string; frequency: number };
+type DiscardReason = { reason: string; frequency: number; percentage: number };
+type PatternsResult =
+  | { error: string; current: number; threshold: number }
+  | {
+      recommendations: Recommendation[];
+      vendorAnalysis: { breakdown: VendorRow[]; minSampleForClaim: number };
+      techStackGaps: TechGap[];
+      discardReasonStats: DiscardReason[];
+    };
+
+export default async function Analytics() {
   const { applications } = pipelineSummary();
   const total = applications.length;
+
+  const [upskill, patterns] = await Promise.all([
+    runJsonScript<UpskillResult>("upskill"),
+    runJsonScript<PatternsResult>("analyze-patterns"),
+  ]);
+  const gaps = (upskill?.gaps ?? []).slice(0, 10);
+  const maxGap = Math.max(1, ...gaps.map((g) => g.weightedScore));
+  const patternsAvailable = patterns && !("error" in patterns);
+  const recommendations = patternsAvailable ? patterns.recommendations : [];
+  const vendorRows = patternsAvailable ? patterns.vendorAnalysis.breakdown : [];
+  const maxVendor = Math.max(1, ...vendorRows.map((v) => v.total));
+  const techGaps = (patternsAvailable ? patterns.techStackGaps : []).slice(0, 10);
+  const maxTechGap = Math.max(1, ...techGaps.map((t) => t.frequency));
+  const discardReasons = patternsAvailable ? patterns.discardReasonStats : [];
+  const maxDiscard = Math.max(1, ...discardReasons.map((d) => d.frequency));
 
   const stageCounts = STAGES.map((s) => ({
     ...s,
@@ -86,6 +118,83 @@ export default function Analytics() {
         {topCompanies.map(([name, n]) => (
           <Bar key={name} label={name} value={n} pct={(n / maxCompany) * 100} />
         ))}
+      </Section>
+
+      <Section title="Skill gaps" id="skill-gaps">
+        {gaps.length > 0 ? (
+          gaps.map((g) => (
+            <Bar
+              key={g.skill}
+              label={g.skill}
+              value={g.weightedScore}
+              pct={(g.weightedScore / maxGap) * 100}
+              tone={g.tier === "High" ? "positive" : "neutral"}
+            />
+          ))
+        ) : (
+          <p className="text-sm text-faint">Not enough low-fit reports yet to spot a pattern — keep evaluating roles.</p>
+        )}
+      </Section>
+
+      <Section title="Advance rate by job board" id="advance-rate">
+        {!patterns ? (
+          <p className="text-sm text-faint">Not available — run `node analyze-patterns.mjs` to check.</p>
+        ) : !patternsAvailable ? (
+          <p className="text-sm text-faint">
+            {patterns.error} ({patterns.current}/{patterns.threshold})
+          </p>
+        ) : vendorRows.length === 0 ? (
+          <p className="text-sm text-faint">No identified ATS vendors in the tracker yet.</p>
+        ) : (
+          <>
+            {vendorRows.map((v) => (
+              <Bar
+                key={v.vendor}
+                label={v.sufficientSample ? v.vendor : `${v.vendor} (n=${v.total})`}
+                value={v.advanceRate}
+                pct={(v.total / maxVendor) * 100}
+              />
+            ))}
+            {recommendations.length > 0 && (
+              <ul className="mt-4 space-y-2 border-t border-border pt-4">
+                {recommendations.map((r, i) => (
+                  <li key={i} className="text-sm">
+                    <span className="font-medium text-foreground">{r.action}</span>
+                    <span className="block text-xs text-faint">{r.reasoning}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </Section>
+
+      <Section title="Tech stack gaps" id="tech-stack-gaps">
+        {!patterns ? (
+          <p className="text-sm text-faint">Not available — run `node analyze-patterns.mjs` to check.</p>
+        ) : !patternsAvailable ? (
+          <p className="text-sm text-faint">
+            {patterns.error} ({patterns.current}/{patterns.threshold})
+          </p>
+        ) : techGaps.length === 0 ? (
+          <p className="text-sm text-faint">No recurring tech-stack mismatch found in your negative/self-filtered reports yet.</p>
+        ) : (
+          techGaps.map((t) => <Bar key={t.skill} label={t.skill} value={t.frequency} pct={(t.frequency / maxTechGap) * 100} />)
+        )}
+      </Section>
+
+      <Section title="Discard reasons" id="discard-reasons">
+        {!patterns ? (
+          <p className="text-sm text-faint">Not available — run `node analyze-patterns.mjs` to check.</p>
+        ) : !patternsAvailable ? (
+          <p className="text-sm text-faint">
+            {patterns.error} ({patterns.current}/{patterns.threshold})
+          </p>
+        ) : discardReasons.length === 0 ? (
+          <p className="text-sm text-faint">No self-filtered discards logged yet.</p>
+        ) : (
+          discardReasons.map((d) => <Bar key={d.reason} label={d.reason} value={d.frequency} pct={(d.frequency / maxDiscard) * 100} />)
+        )}
       </Section>
     </div>
   );
