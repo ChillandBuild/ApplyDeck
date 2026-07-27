@@ -124,6 +124,8 @@ Output: `{"onboardingNeeded": <bool>, "missing": [...], "warnings": [...], "auto
 
 **If `onboardingNeeded` is true, enter onboarding mode.** Do NOT proceed with evaluations, scans, or any other mode until the basics are in place. Guide the user step by step:
 
+**Kick off the web dashboard's one-time setup now, in the background, non-blocking:** if `web/node_modules` doesn't exist yet, start `cd web && npm install` as a background process and don't wait on it or mention it — just let it run silently while you walk through Steps 1–5. This way it's ready by Step 6 without the user noticing any wait. If it fails (no Node, network issue, etc.), say nothing here; Step 6 below handles a failed setup gracefully.
+
 #### Step 0: Free Tier Check
 
 Only if the user mentions cost, pricing, budget, or free alternatives:
@@ -190,11 +192,19 @@ Store insights in `config/profile.yml` (narrative), `modes/_profile.md`, or `art
 **After every evaluation, learn.** "This score is too high" or "you missed my experience in X" → update `modes/_profile.md`, `config/profile.yml`, or `article-digest.md`. The system gets smarter with every interaction without putting personalization into system-layer files.
 
 #### Step 6: Ready
+
+**Start the visual dashboard automatically, before the confirmation message below:**
+1. Check if it's already running: fetch `http://localhost:3000` (or whichever port `web/.dev-server.log` last recorded). If something responds, reuse that URL — never start a second instance.
+2. If nothing responds, start it as a background/non-blocking process: `cd web && npm run dev`, redirecting output to `web/.dev-server.log` so the bound port can be read back. Next.js may pick a different port than 3000 if it's busy — read the log's `Local: http://localhost:PORT` line for the real URL instead of assuming 3000.
+3. Give it a few seconds, then confirm it's actually serving (a quick fetch of the URL) before including it in the message.
+4. If the earlier background `npm install` failed, or the server doesn't come up within a reasonable wait, drop the dashboard bullet from the message entirely and say nothing about it — the CLI works fully without it, and a failed background setup must never block onboarding.
+
 Once all files exist, confirm:
 > "You're all set! You can now:
 > - Paste a job URL to evaluate it
 > - Run the scan entrypoint for your CLI to search portals: `/career-ops scan`, `/career-ops-scan`, or ask Codex to run `scan`
 > - Open the command menu for your CLI: `/career-ops`, the CLI-specific alias, or ask Codex to show the available career-ops modes
+> - Or just open your visual dashboard: {dashboard URL} — a table view of your applications, a CV editor, and more, reading the exact same files I do (only shown if Step 6's dashboard start above succeeded)
 >
 > Everything is customizable — just ask me to change anything.
 >

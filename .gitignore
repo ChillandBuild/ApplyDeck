@@ -121,6 +121,7 @@ plan/
 
 # Web
 .career-ops-web/
+web/.dev-server.log
 
 # Brainstorming visual companion
 .superpowers/
