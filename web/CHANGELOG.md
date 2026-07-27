@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.4.0](https://github.com/ChillandBuild/ApplyDeck/compare/web-v0.3.0...web-v0.4.0) (2026-07-27)
+
+
+### Features
+
+* scheduled-automation runner + apify field-map fallbacks; fix blacklist bug ([03ce7b9](https://github.com/ChillandBuild/ApplyDeck/commit/03ce7b9865320d930e029fa3376e542f6b327f2d))
+* **web:** add a company to scan by pasting its job-board URL ([04fbe71](https://github.com/ChillandBuild/ApplyDeck/commit/04fbe71613546b8c366ac40802d4e301b34331ab))
+* **web:** add ApifyScanEvent type and widen ExploreMode to include apify ([ca74e63](https://github.com/ChillandBuild/ApplyDeck/commit/ca74e63ebede4fb6bfb1a4ec969d8d9f27c68f4d))
+* **web:** add ApifySourcePicker, the dynamic Sources row for Apify mode ([36b2936](https://github.com/ChillandBuild/ApplyDeck/commit/36b2936de2b487f63ee2799e2daa4c915d4781da))
+* **web:** add isApifyPluginEnabled/isApifyTokenConfigured gate helpers ([30efb9d](https://github.com/ChillandBuild/ApplyDeck/commit/30efb9def8062e38d8962a6ee155aa642e0441fe))
+* **web:** add POST /api/explore/apify streaming discovery route ([7871fa2](https://github.com/ChillandBuild/ApplyDeck/commit/7871fa2dade565db7d3f500dffe94d12b307a83f))
+* **web:** add the Apify pill to the Explore mode toggle ([6c138bf](https://github.com/ChillandBuild/ApplyDeck/commit/6c138bfe44c3ec2ce1260744add97bb0378d6d7c))
+* **web:** Apify composer (Phase 1) + Pilot/Scout page scaffolding ([420714c](https://github.com/ChillandBuild/ApplyDeck/commit/420714ceedd326fe45e62d35c0e776d75d4b2924))
+* **web:** Automation Safety card on the Config page (caps, allowlist, vendors) ([75901dc](https://github.com/ChillandBuild/ApplyDeck/commit/75901dc44c84ae9e35198c4723c55405eb20f478))
+* **web:** bring-your-own Apify token, stored in .env, never echoed back ([62b5d82](https://github.com/ChillandBuild/ApplyDeck/commit/62b5d82445dc0f2686717c68871c1da28366522f))
+* **web:** complete Pilot/Scout wiring — de-dup, scheduled Apify, web search ([ee20e62](https://github.com/ChillandBuild/ApplyDeck/commit/ee20e62b31f3b1a62ea1bf5996187fb246b47345))
+* **web:** Do Not Apply blacklist editor on the Config page ([d7d3b52](https://github.com/ChillandBuild/ApplyDeck/commit/d7d3b524a14f26db12f61d16311a47b4954f51cc))
+* **web:** expose automation safety caps + tier switch via /api/automation ([ed499c9](https://github.com/ChillandBuild/ApplyDeck/commit/ed499c927a5628358b839625849571ba81eecca3))
+* **web:** expose provider:apify entries as apifySources on the snapshot ([1c17d99](https://github.com/ChillandBuild/ApplyDeck/commit/1c17d99612355c6bc290de7d365a6e1a28c415b1))
+* **web:** extract readPortalsDoc() shared portals.yml reader ([8fc015f](https://github.com/ChillandBuild/ApplyDeck/commit/8fc015f9db595c4d023437d0d20ef2b7eb2ace60))
+* **web:** GET/PUT /api/automation — schedule_hours reader/writer ([1f62452](https://github.com/ChillandBuild/ApplyDeck/commit/1f62452bdd9c706197c1ea9160acf2b8a02af7e6))
+* **web:** Job Targeting card on the Config page ([c545808](https://github.com/ChillandBuild/ApplyDeck/commit/c545808cd337ae844689ef4b1d6bda763444e8d2))
+* **web:** PUT /api/portals — targeting + apify entry writer ([1787d18](https://github.com/ChillandBuild/ApplyDeck/commit/1787d1826685994a6be663cf920fcdd0cc927346))
+* **web:** read-only Automation Activity log on the Config page ([6e5cf46](https://github.com/ChillandBuild/ApplyDeck/commit/6e5cf46bf9f6308f73eb29cd2059e8d97437ce9b))
+* **web:** rebrand UI to ApplyDeck — deck-mark logo, favicon, visible strings ([4219d71](https://github.com/ChillandBuild/ApplyDeck/commit/4219d71837c8c83a407ff07bb5d719237232f877))
+* **web:** render Apify mode in ExplorerView ([81b7649](https://github.com/ChillandBuild/ApplyDeck/commit/81b76492cfaabcba5cec9cfe7fbd52a8975660af))
+* **web:** toggleable Search Sources card on the Config page ([effab8b](https://github.com/ChillandBuild/ApplyDeck/commit/effab8b30138910f12970a74f303191db1757e5f))
+* **web:** wire Apify mode into ExploreProvider ([00751e7](https://github.com/ChillandBuild/ApplyDeck/commit/00751e78a9baeee64d625f3b00907e3a312c3d3c))
+
+
+### Bug Fixes
+
+* **web:** inbox pipeline sync, cv upload, shuffle sampling; apify url fixes ([170d446](https://github.com/ChillandBuild/ApplyDeck/commit/170d44608932806433c14b9377ea47a5f5b87157))
+* **web:** make the targeting-UI tests actually runnable, harden gitignore ([4ba1e20](https://github.com/ChillandBuild/ApplyDeck/commit/4ba1e202ae2caca3339da672dd8bbc71282e8daf))
+
 ## [0.3.0](https://github.com/santifer/career-ops/compare/web-v0.2.0...web-v0.3.0) (2026-07-07)
 
 
