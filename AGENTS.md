@@ -66,6 +66,8 @@ Whenever the user asks to open, view, or see their dashboard — during onboardi
 
 The data itself (`cv.md`, `data/pipeline.md`, `data/applications.md`, `reports/`, `config/`, any Apify/Serper keys saved via the dashboard into `.env`) is just files on disk — it persists indefinitely regardless of how long the dashboard process has been stopped. Only the *server process* needs restarting after it's been closed; the data itself never needs re-entering.
 
+**After `node update-system.mjs apply`:** `web/` is a system-layer path, so an update can change its source files (and, if `web/package.json` itself changed, reinstall its dependencies). If the dashboard was running before the update, its process is now serving stale code from memory — restart it (same check-if-running-then-start procedure above) so the client sees the new version rather than a mismatched one.
+
 ## What is ApplyDeck
 
 AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluation, CV generation, portal scanning, batch processing. Runs on any AI coding CLI following the [open agent skill standard](https://agentskills.io) (Claude Code, Codex, OpenCode, Qwen, Copilot, Kimi, Antigravity CLI, Grok Build CLI). Legacy Gemini API evaluation remains via `gemini-eval.mjs`.

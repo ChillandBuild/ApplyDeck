@@ -225,6 +225,7 @@ const SYSTEM_PATHS = [
   'batch/README.md',
   'utils/token-tracker.mjs',
   'dashboard/',
+  'web/',
   'templates/',
   'config/cv-facts.example.json',
   'fonts/',
@@ -625,6 +626,31 @@ function rebuildDashboardBinaryIfNeeded() {
   }
 }
 
+// Only worth an `npm install` in web/ if its own manifest actually moved —
+// most updates only touch .tsx/.ts source, which the running `next dev`
+// process already hot-reloads on its own; reinstalling on every update would
+// be needless work (and risk) for zero benefit.
+function webPackageChanged() {
+  try {
+    const changed = git('diff', '--name-only', 'HEAD', '--', 'web/package.json', 'web/package-lock.json');
+    return changed.split('\n').some(Boolean);
+  } catch {
+    return false;
+  }
+}
+
+function npmInstallWebIfNeeded() {
+  if (!existsSync(join(ROOT, 'web', 'node_modules'))) return; // never set up locally — nothing to keep in sync
+  if (!webPackageChanged()) return;
+
+  try {
+    execSync('npm install --silent', { cwd: join(ROOT, 'web'), timeout: NPM_INSTALL_TIMEOUT_MS });
+    console.log('web/ dependencies updated -- if the dashboard is running, restart it (see AGENTS.md -> Web Dashboard)');
+  } catch {
+    console.log('web/ npm install skipped (may need manual run: cd web && npm install)');
+  }
+}
+
 // ── CHECK ───────────────────────────────────────────────────────
 
 // curl helper used by check() — curl works inside the Claude Code sandbox
@@ -1001,6 +1027,9 @@ async function apply() {
 
     // 6. Rebuild compiled dashboard if Go sources changed
     rebuildDashboardBinaryIfNeeded();
+
+    // 6b. Reinstall web/ dependencies only if its own manifest changed
+    npmInstallWebIfNeeded();
 
     // 7. Commit the update
     const remote = localVersion(); // Re-read after checkout updated VERSION
