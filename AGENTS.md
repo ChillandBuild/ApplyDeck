@@ -47,16 +47,13 @@ node update-system.mjs check
 ```
 
 If `{"status": "update-available", "local": ..., "remote": ..., "changelog": ...}` → tell the user:
-> "A new career-ops release is available upstream (v{local} → v{remote})."
+> "A new ApplyDeck update is available (v{local} → v{remote}). Your data (CV, profile, tracker, reports) will NOT be touched. Want me to update?"
 
-**Do NOT run `node update-system.mjs apply` on this fork.** ApplyDeck is a rebranded, white-labeled fork of career-ops — `apply` checks out system-layer files (`AGENTS.md`, `CLAUDE.md`, `modes/*.md`, etc.) straight from the upstream `santifer/career-ops` repo, which would silently overwrite the ApplyDeck branding and any of this fork's own customizations with unreviewed upstream content. Instead, offer to review what changed:
+If yes → `node update-system.mjs apply`. This is safe on this fork: `apply` now pulls system-layer files (`AGENTS.md`, `CLAUDE.md`, `modes/*.md`, etc.) from **this fork's own repo** (`ChillandBuild/ApplyDeck`), not the original upstream — so it delivers this fork's own fixes/branding forward, it does not overwrite them. `apply()` still hard-refuses on any *further* fork whose own origin has diverged from its configured canonical repo (see `isDivergedFork()` in `update-system.mjs`), so this same mechanism stays safe if ApplyDeck itself is ever white-labeled again downstream.
 
-```bash
-git fetch upstream main
-git diff upstream/main -- <path>   # e.g. modes/scan.md, scan.mjs
-```
+If no → `node update-system.mjs dismiss`. Every other status (`up-to-date`, `dismissed`, `offline`, `no-remote-version`) → say nothing.
 
-Port over anything genuinely useful by hand (cherry-pick or manual edit), keeping the ApplyDeck branding intact. If the user explicitly wants to dismiss the notice → `node update-system.mjs dismiss`. Every other status (`up-to-date`, `dismissed`, `offline`, `no-remote-version`) → say nothing.
+Separately, to check what's new in the *original* open-source career-ops project (a distinct, manual, maintainer-only step — unrelated to the update check above): `git fetch upstream main && git diff upstream/main -- <path>`, then port over anything useful by hand, keeping ApplyDeck's own branding intact.
 
 ## What is ApplyDeck
 

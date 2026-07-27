@@ -1,6 +1,6 @@
 {
   "name": "applydeck",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "AI-powered job search pipeline — works with any AI coding CLI (Claude Code, Codex, OpenCode, Antigravity, Grok, Qwen, Kimi, Copilot). Based on career-ops.",
   "private": true,
   "scripts": {
