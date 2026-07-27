@@ -729,7 +729,42 @@ async function check() {
 
 // ── APPLY ───────────────────────────────────────────────────────
 
+// True when this checkout's own origin isn't the canonical career-ops repo —
+// i.e. a rebranded/white-labeled fork (like ApplyDeck) rather than a plain
+// clone. SYSTEM_PATHS covers nearly the whole repo (AGENTS.md, modes/*,
+// package.json, README.md, docs/, .github/, scaffolder/, ...), so on a fork,
+// apply()'s `git checkout FETCH_HEAD -- <path>` would silently overwrite
+// rebranded/customized files with unreviewed upstream content (see AGENTS.md
+// → Update Check).
+function isDivergedFork() {
+  let origin;
+  try {
+    origin = git('remote', 'get-url', 'origin');
+  } catch {
+    return false; // no origin configured — nothing to compare against, let apply() proceed
+  }
+  const normalize = (url) => url
+    .trim()
+    .replace(/\.git$/, '')
+    .replace(/^git@github\.com:/, 'https://github.com/')
+    .toLowerCase();
+  return normalize(origin) !== normalize(CANONICAL_REPO);
+}
+
 async function apply() {
+  if (isDivergedFork() && process.env.CAREER_OPS_ALLOW_FORK_APPLY !== '1') {
+    throw new Error(
+      "This repo's origin isn't the canonical career-ops repo, so it looks like a rebranded/customized " +
+      'fork (e.g. ApplyDeck). `apply` would overwrite nearly the whole system-file list — AGENTS.md, ' +
+      'modes/*, package.json, README.md, docs/, .github/, scaffolder/, and more — with unreviewed content ' +
+      'straight from upstream, silently reverting any rebranding or customization.\n\n' +
+      'Review and port changes manually instead:\n' +
+      `  git fetch ${CANONICAL_REPO} main\n` +
+      '  git diff FETCH_HEAD -- <path>   # e.g. modes/scan.md, scan.mjs\n\n' +
+      'To apply anyway (NOT recommended on a rebranded fork): re-run with CAREER_OPS_ALLOW_FORK_APPLY=1'
+    );
+  }
+
   const local = localVersion();
   const initialStatusPaths = new Set(gitStatusEntries().map(entry => entry.path));
   const isReexec = process.env.CAREER_OPS_UPDATE_REEXEC === '1';

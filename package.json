@@ -1,7 +1,7 @@
 {
-  "name": "career-ops",
-  "version": "1.22.0",
-  "description": "AI-powered job search pipeline — works with any AI coding CLI (Claude Code, Codex, OpenCode, Antigravity, Grok, Qwen, Kimi, Copilot)",
+  "name": "applydeck",
+  "version": "1.0.0",
+  "description": "AI-powered job search pipeline — works with any AI coding CLI (Claude Code, Codex, OpenCode, Antigravity, Grok, Qwen, Kimi, Copilot). Based on career-ops.",
   "private": true,
   "scripts": {
     "doctor": "node doctor.mjs",
@@ -59,6 +59,7 @@
     "claude-code",
     "opencode",
     "career",
+    "applydeck",
     "career-ops",
     "careerops",
     "automation",
@@ -70,11 +71,11 @@
     "grok",
     "ai-agent-skill"
   ],
-  "author": "Santiago Fernández de Valderrama <hi@santifer.io> (https://santifer.io)",
-  "homepage": "https://santifer.io",
+  "author": "K Prem <kanthaiyee@gmail.com>",
+  "homepage": "https://github.com/ChillandBuild/ApplyDeck#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/santifer/career-ops"
+    "url": "https://github.com/ChillandBuild/ApplyDeck"
   },
   "license": "MIT",
   "dependencies": {

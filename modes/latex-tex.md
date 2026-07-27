@@ -14,7 +14,7 @@ Opt-in mode for candidates who already maintain a hand-tuned `.tex` CV. **Does n
 | `resumeSubheading` | `\resumeSubheading` + `\resumeItem` | `\resumeItem{...}` bullets; `\textbf{Category}{: items}` skill values |
 | `tabularx-itemize` | `tabularx` + `itemize`, no resume macros | `\item` body text in the document body |
 
-Any other layout → stop with the script error and suggest `/career-ops latex` (cv.md → career-ops template).
+Any other layout → stop with the script error and suggest `/career-ops latex` (cv.md → ApplyDeck template).
 
 ## Source file resolution
 
@@ -78,5 +78,5 @@ Same as `modes/latex.md` and `modes/pdf.md`:
 
 | Mode | Input | Output |
 |------|-------|--------|
-| `latex` | `cv.md` | career-ops `templates/cv-template.tex` → `.tex` + PDF |
+| `latex` | `cv.md` | ApplyDeck `templates/cv-template.tex` → `.tex` + PDF |
 | `latex-tex` | user's `resume.tex` | same template shape, tailored prose only → `.tex` + PDF |

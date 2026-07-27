@@ -1,4 +1,4 @@
-# Custom Instructions -- career-ops
+# Custom Instructions -- ApplyDeck
 
 <!-- ============================================================
      THIS FILE IS YOURS. It will NEVER be auto-updated.

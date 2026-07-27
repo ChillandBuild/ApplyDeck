@@ -78,7 +78,7 @@ eligible again only after the user reviews it.
 ## Scheduling
 
 - `/loop`-capable CLI: recurring tick every `automation.schedule_hours` hours.
-- cron: `0 */6 * * * cd <repo-root> && <headless-cmd> "Run career-ops autonomous-pipeline mode"`
+- cron: `0 */6 * * * cd <repo-root> && <headless-cmd> "Run ApplyDeck autonomous-pipeline mode"`
   (see AGENTS.md → Headless / Batch Mode for the per-CLI command).
 - Assumption: ONE tick at a time. Do not schedule overlapping runs; the
   per-run counter is per-invocation and the daily counter is derived from the

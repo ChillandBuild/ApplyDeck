@@ -1,4 +1,4 @@
-# Career-Ops -- AI Job Search Pipeline
+# ApplyDeck -- AI Job Search Pipeline
 
 ## Origin
 
@@ -24,7 +24,7 @@ User-facing content (CV, cover letters, application emails, form answers, recrui
 - `voice-dna.md` (voice/style only — never introduces factual claims)
 - `interview-prep/story-bank.md` and `interview-prep/{company}-{role}.md` (the user's own STAR stories and prep notes — same trust level as `cv.md`; consumed by `interview` and `apply`/`match-star`)
 
-Everything else is **out of scope for content generation**: auto-memory (see below), any directory outside the career-ops project (parent/sibling repos, other codebases on the machine), knowledge from other Claude Code projects on the same machine, and cross-session inferences not written into an in-scope file.
+Everything else is **out of scope for content generation**: auto-memory (see below), any directory outside the ApplyDeck project (parent/sibling repos, other codebases on the machine), knowledge from other Claude Code projects on the same machine, and cross-session inferences not written into an in-scope file.
 
 **Rule from the original design:** *"Keywords get reformulated, never fabricated."* Reorder, reframe, emphasise — but never invent. If a claim isn't backed by an in-scope file, ask the user; if they don't add it, the output goes without it. Silence on a topic is fine; manufactured detail is not.
 
@@ -47,11 +47,18 @@ node update-system.mjs check
 ```
 
 If `{"status": "update-available", "local": ..., "remote": ..., "changelog": ...}` → tell the user:
-> "career-ops update available (v{local} → v{remote}). Your data (CV, profile, tracker, reports) will NOT be touched. Want me to update?"
+> "A new career-ops release is available upstream (v{local} → v{remote})."
 
-If yes → `node update-system.mjs apply`. If no → `node update-system.mjs dismiss`. Every other status (`up-to-date`, `dismissed`, `offline`, `no-remote-version`) → say nothing. The user can force a check anytime ("check for updates" / "update career-ops"); rollback: `node update-system.mjs rollback`.
+**Do NOT run `node update-system.mjs apply` on this fork.** ApplyDeck is a rebranded, white-labeled fork of career-ops — `apply` checks out system-layer files (`AGENTS.md`, `CLAUDE.md`, `modes/*.md`, etc.) straight from the upstream `santifer/career-ops` repo, which would silently overwrite the ApplyDeck branding and any of this fork's own customizations with unreviewed upstream content. Instead, offer to review what changed:
 
-## What is career-ops
+```bash
+git fetch upstream main
+git diff upstream/main -- <path>   # e.g. modes/scan.md, scan.mjs
+```
+
+Port over anything genuinely useful by hand (cherry-pick or manual edit), keeping the ApplyDeck branding intact. If the user explicitly wants to dismiss the notice → `node update-system.mjs dismiss`. Every other status (`up-to-date`, `dismissed`, `offline`, `no-remote-version`) → say nothing.
+
+## What is ApplyDeck
 
 AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluation, CV generation, portal scanning, batch processing. Runs on any AI coding CLI following the [open agent skill standard](https://agentskills.io) (Claude Code, Codex, OpenCode, Qwen, Copilot, Kimi, Antigravity CLI, Grok Build CLI). Legacy Gemini API evaluation remains via `gemini-eval.mjs`.
 
@@ -120,7 +127,7 @@ Output: `{"onboardingNeeded": <bool>, "missing": [...], "warnings": [...], "auto
 #### Step 0: Free Tier Check
 
 Only if the user mentions cost, pricing, budget, or free alternatives:
-> "career-ops works fully on Antigravity CLI's free tier — no API key or paid subscription needed. See [FREE_TIER.md](docs/FREE_TIER.md) for setup, daily limits, and batch tips."
+> "ApplyDeck works fully on Antigravity CLI's free tier — no API key or paid subscription needed. See [FREE_TIER.md](docs/FREE_TIER.md) for setup, daily limits, and batch tips."
 
 If the user is already on a paid plan (Claude Max, Google AI, etc.) or does not mention cost, skip this step silently.
 
